@@ -16,4 +16,7 @@ class ApiKeyResponse(BaseModel):
         from_attributes = True
 
 class ApiKeyCreateResponse(ApiKeyResponse):
-    plain_key: str  # Exposed only once to the client upon creation
+    plain_key: str
+
+class ApiKeyUpdate(BaseModel):
+    is_active: bool     
