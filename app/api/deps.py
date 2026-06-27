@@ -1,17 +1,20 @@
 import uuid
 import jwt
+import hashlib 
 from typing import Annotated
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, APIKeyHeader  # Added APIKeyHeader
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.config import settings
 from app.database import get_db
 from app.models.user_org import User, UserRole
+from app.models.api_key import ApiKey
 
-# Standard bearer authorization scheme mapping directly to Swagger UI locks
 security = HTTPBearer()
+
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
@@ -68,3 +71,38 @@ class RoleChecker:
                 detail="You do not have access permission to perform this action."
             )
         return current_user
+    
+async def get_api_key_org_id(
+    api_key: Annotated[str | None, Depends(api_key_header)],
+    db: Annotated[AsyncSession, Depends(get_db)]
+) -> uuid.UUID:
+    """Validate X-API-Key custom header and return the bound organization ID context."""
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing 'X-API-Key' header."
+        )
+    
+    if "." not in api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API Key format."
+        )
+
+    # Re-hash key to search and match the database entry securely
+    hashed_key = hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+    
+    query = select(ApiKey).where(
+        ApiKey.hashed_key == hashed_key,
+        ApiKey.is_active == True
+    )
+    result = await db.execute(query)
+    db_key = result.scalar_one_or_none()
+
+    if not db_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or deactivated API Key."
+        )
+        
+    return db_key.organization_id

@@ -9,6 +9,7 @@ from app.database import get_db
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.users import router as users_router  # Imported
 from app.api.v1.endpoints.api_keys import router as api_keys_router  # Imported
+from app.api.v1.endpoints.ingest import router as ingest_router 
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,7 +33,8 @@ app.add_middleware(
 # Register routers
 app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"])
 app.include_router(users_router, prefix=f"{settings.API_V1_STR}/users", tags=["Users"])
-app.include_router(api_keys_router, prefix=f"{settings.API_V1_STR}/api-keys", tags=["API Keys"])  # Registered
+app.include_router(api_keys_router, prefix=f"{settings.API_V1_STR}/api-keys", tags=["API Keys"])
+app.include_router(ingest_router, prefix=f"{settings.API_V1_STR}/ingest", tags=["Ingestion"])
 
 @app.get("/health")
 async def health_check(db: AsyncSession = Depends(get_db)):
