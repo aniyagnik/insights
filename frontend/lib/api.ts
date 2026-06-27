@@ -1,18 +1,22 @@
-const BACKEND_URL = "http://127.0.0.1:8000/api/v1";
+import { useAuthStore } from "@/store/authStore";  
+
+const BACKEND_URL = "http://localhost:8000/api/v1";
 
 export async function apiRequest(
   endpoint: string,
   options: RequestInit = {}
 ) {
+  const accessToken = useAuthStore.getState().accessToken;
+
   const headers = {
     "Content-Type": "application/json",
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     ...(options.headers || {}),
   };
 
   const response = await fetch(`${BACKEND_URL}${endpoint}`, {
     ...options,
     headers,
-    // Crucial for HTTP-only cookie sharing (transmitting refresh tokens securely)
     credentials: "include", 
   });
 

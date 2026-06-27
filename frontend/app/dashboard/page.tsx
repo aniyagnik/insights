@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { apiRequest } from "@/lib/api";
 import Button from "@/components/Button";
-
+import WidgetCard from "@/components/WidgetCard"; 
 interface Dashboard {
   id: string;
   name: string;
@@ -129,13 +129,11 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     activeDashboard.widgets.map((widget) => (
-                      <div key={widget.id} className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
-                        <h3 className="font-bold text-slate-800 mb-1">{widget.name}</h3>
-                        <p className="text-xs text-slate-400 uppercase font-black tracking-wider mb-4">{widget.type}</p>
-                        <div className="h-40 flex items-center justify-center bg-slate-50 rounded-lg border border-dashed border-slate-200">
-                          <span className="text-xs text-slate-400 font-medium">Chart Data Coming Soon</span>
-                        </div>
-                      </div>
+                      <WidgetCard 
+                        key={widget.id} 
+                        dashboardId={activeDashboard.id} 
+                        widgetId={widget.id} 
+                      />
                     ))
                   )}
                 </div>
