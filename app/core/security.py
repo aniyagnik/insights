@@ -1,7 +1,9 @@
-from datetime import datetime, timedelta, timezone
+import secrets
+import hashlib
 import bcrypt
 import jwt
 from app.config import settings
+from datetime import datetime, timedelta, timezone
 
 def hash_password(password: str) -> str:
     """Generate a secure salted bcrypt password hash."""
@@ -27,3 +29,16 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     to_encode.update({"exp": int(expire.timestamp())})
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt
+
+
+def generate_api_key() -> tuple[str, str, str]:
+    """
+    Generate a secure random API key.
+    Returns: Tuple of (plain_text_key, search_prefix, hashed_db_key)
+    """
+    prefix = "pk_live_" + secrets.token_hex(4)  # e.g., pk_live_a1b2c3d4
+    secret = secrets.token_urlsafe(32)
+    plain_key = f"{prefix}.{secret}"
+    
+    hashed_key = hashlib.sha256(plain_key.encode("utf-8")).hexdigest()
+    return plain_key, prefix, hashed_key
