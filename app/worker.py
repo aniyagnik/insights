@@ -1,5 +1,8 @@
 import asyncio
 import uuid
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timezone
 from celery import Celery
 from sqlalchemy.pool import NullPool 
@@ -62,3 +65,45 @@ def process_events_task(events_data: list[dict], org_id_str: str):
     """Synchronous worker thread wrapper to execute asynchronous task queues."""
     org_id = uuid.UUID(org_id_str)
     asyncio.run(_insert_events_async(events_data, org_id))
+
+@celery_app.task(name="send_invitation_email_task")
+def send_invitation_email_task(email: str, org_name: str, invite_link: str):
+    """Asynchronously dispatch real invitation HTML emails via SMTP."""
+    # Fallback to local logs if SMTP credentials are not configured
+    if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
+        print(f"\n[SMTP MOCK] Credentials missing. Printing invite email to logs:\n"
+              f"To: {email}\n"
+              f"Org: {org_name}\n"
+              f"Invite Link: {invite_link}\n")
+        return
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"You are invited to join {org_name} on Analytics Platform!"
+    msg["From"] = settings.SMTP_FROM
+    msg["To"] = email
+
+    html_payload = f"""
+    <html>
+      <body style="font-family: sans-serif; padding: 20px;">
+        <h2>Join {org_name}</h2>
+        <p>You have been invited to join the team as a member.</p>
+        <p>Please click the button below to accept and complete your account setup:</p>
+        <p style="margin: 30px 0;">
+          <a href="{invite_link}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+            Accept Invitation
+          </a>
+        </p>
+        <p>This invitation link will expire in 7 days.</p>
+      </body>
+    </html>
+    """
+    msg.attach(MIMEText(html_payload, "html"))
+
+    try:
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            server.starttls()
+            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            server.sendmail(settings.SMTP_FROM, email, msg.as_string())
+            print(f"[SMTP SUCCESS] Dispatched invitation email successfully to {email}")
+    except Exception as e:
+        print(f"[SMTP ERROR] Failed to dispatch email: {e}")
