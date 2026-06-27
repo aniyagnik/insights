@@ -1,5 +1,6 @@
 import enum
-from sqlalchemy import String, ForeignKey, Enum, Boolean
+import uuid
+from sqlalchemy import String, ForeignKey, Enum, Boolean, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin
 
@@ -12,7 +13,9 @@ class UserRole(str, enum.Enum):
 class Organization(Base, TimestampMixin):
     __tablename__ = "organizations"
 
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, primary_key=True, default=uuid.uuid4, index=True
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
@@ -25,7 +28,9 @@ class Organization(Base, TimestampMixin):
 class User(Base, TimestampMixin):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, primary_key=True, default=uuid.uuid4, index=True
+    )
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(
@@ -35,9 +40,8 @@ class User(Base, TimestampMixin):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     
-    organization_id: Mapped[int] = mapped_column(
-        ForeignKey("organizations.id", ondelete="CASCADE"), 
-        nullable=False
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
 
     organization: Mapped["Organization"] = relationship(

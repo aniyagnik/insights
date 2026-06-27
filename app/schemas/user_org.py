@@ -1,11 +1,12 @@
+import uuid
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
 
 class UserResponse(BaseModel):
-    id: int
+    id: uuid.UUID
     email: EmailStr
     role: str
-    organization_id: int
+    organization_id: uuid.UUID
     created_at: datetime
 
     class Config:
