@@ -15,7 +15,7 @@ from app.config import settings
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 from app.models.base import Base
-from app.models.user_org import User, Organization  # Import models to register them
+from app.models import User, Organization, Event  # Modified to import from package init
 target_metadata = Base.metadata
 
 
