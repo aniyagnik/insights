@@ -1,11 +1,13 @@
 import uuid
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy import func, select
 
 from app.database import get_db
 from app.api.deps import get_current_user
 from app.models.user_org import User
+from app.models.event import Event 
 from app.models.dashboard import Dashboard, Widget
 from app.schemas.dashboard import (
     DashboardCreate,
@@ -156,3 +158,71 @@ async def create_widget(
     await db.commit()
     await db.refresh(new_widget)
     return new_widget
+
+
+@router.get("/{dashboard_id}/widgets/{widget_id}/data")
+async def get_widget_chart_data(
+    dashboard_id: uuid.UUID,
+    widget_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Execute a widget's query configuration to fetch aggregated time-series analytical telemetry."""
+    widget_query = select(Widget).join(Dashboard).where(
+        Widget.id == widget_id,
+        Dashboard.id == dashboard_id,
+        Dashboard.organization_id == current_user.organization_id
+    )
+    result = await db.execute(widget_query)
+    widget = result.scalar_one_or_none()
+    
+    if not widget:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Widget not found or access denied."
+        )
+
+    config = widget.query_config
+    event_name = config.get("event_name")
+    time_range_hours = config.get("time_range_hours", 24)
+    interval = config.get("interval", "hour")  # Default to hourly buckets
+    
+    if not event_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Widget query configuration is missing 'event_name'."
+        )
+
+    start_time = datetime.now(timezone.utc) - timedelta(hours=time_range_hours)
+
+    time_bucket = func.date_trunc(interval, Event.timestamp).label("interval")
+    analytics_query = (
+        select(time_bucket, func.count(Event.id).label("count"))
+        .where(
+            Event.organization_id == current_user.organization_id,
+            Event.event_name == event_name,
+            Event.timestamp >= start_time
+        )
+        .group_by(time_bucket)
+        .order_by(time_bucket.asc())
+    )
+    
+    analytics_result = await db.execute(analytics_query)
+    rows = analytics_result.all()
+
+    chart_series = []
+    for row in rows:
+        chart_series.append({
+            "timestamp": row.interval.isoformat(),
+            "value": row.count
+        })
+
+    return {
+        "widget_id": str(widget_id),
+        "widget_name": widget.name,
+        "type": widget.type.value,
+        "event_name": event_name,
+        "time_range_hours": time_range_hours,
+        "interval": interval,
+        "data": chart_series
+    }
