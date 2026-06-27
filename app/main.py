@@ -6,7 +6,8 @@ from sqlalchemy.sql import text
 
 from app.config import settings
 from app.database import get_db
-from app.api.v1.endpoints.auth import router as auth_router  # Imported
+from app.api.v1.endpoints.auth import router as auth_router
+from app.api.v1.endpoints.users import router as users_router  # Imported
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,7 +28,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Register routers
 app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"])
+app.include_router(users_router, prefix=f"{settings.API_V1_STR}/users", tags=["Users"])  # Registered
 
 @app.get("/health")
 async def health_check(db: AsyncSession = Depends(get_db)):
