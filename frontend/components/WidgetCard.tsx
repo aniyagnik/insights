@@ -10,22 +10,27 @@ import {
 interface WidgetProps {
   dashboardId: string;
   widgetId: string;
+  isPublic?: boolean;
 }
 
 const COLORS = ["#4f46e5", "#06b6d4", "#10b981", "#f59e0b", "#ef4444"];
 
-export default function WidgetCard({ dashboardId, widgetId }: WidgetProps) {
+export default function WidgetCard({ dashboardId, widgetId, isPublic = false }: WidgetProps) {  // Modified props
   const [mounted, setMounted] = useState(false);
 
-  // Prevent SSR hydration mismatches with Recharts SVG rendering
   useEffect(() => {
     setMounted(true);
   }, []);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["widgetData", dashboardId, widgetId],
-    queryFn: () => apiRequest(`/dashboards/${dashboardId}/widgets/${widgetId}/data`),
-    refetchInterval: 30000, // Silently background-refresh data every 30 seconds
+    queryKey: ["widgetData", dashboardId, widgetId, isPublic],
+    queryFn: () => {
+      const endpoint = isPublic
+        ? `/dashboards/public/${dashboardId}/widgets/${widgetId}/data`
+        : `/dashboards/${dashboardId}/widgets/${widgetId}/data`;
+      return apiRequest(endpoint);
+    },
+    refetchInterval: 30000,
   });
 
   if (!mounted) {

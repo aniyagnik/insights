@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload 
 
 from app.database import get_db
 from app.api.deps import get_current_user
@@ -199,6 +200,84 @@ async def get_widget_chart_data(
             "timestamp": row.interval.isoformat(),
             "value": row.count
         })
+
+    return {
+        "widget_id": str(widget_id),
+        "widget_name": widget.name,
+        "type": widget.type.value,
+        "event_name": event_name,
+        "time_range_hours": time_range_hours,
+        "interval": interval,
+        "data": chart_series
+    }
+    
+@router.get("/public/{dashboard_id}", response_model=DashboardResponse)
+async def get_public_dashboard(
+    dashboard_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """Fetch a public, read-only dashboard by ID (No session auth required) [2]."""
+    query = select(Dashboard).where(
+        Dashboard.id == dashboard_id,
+        Dashboard.is_public == True
+    )
+    result = await db.execute(query)
+    dashboard = result.scalar_one_or_none()
+    
+    if not dashboard:
+        raise TenantAccessDeniedException("Dashboard not found, access denied, or private [1].")
+    return dashboard
+
+
+@router.get("/public/{dashboard_id}/widgets/{widget_id}/data")
+async def get_public_widget_chart_data(
+    dashboard_id: uuid.UUID,
+    widget_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """Execute a public widget's query configuration to fetch aggregated data (No auth required) [2, 3]."""
+    widget_query = (
+        select(Widget)
+        .options(joinedload(Widget.dashboard))
+        .join(Dashboard)
+        .where(
+            Widget.id == widget_id,
+            Dashboard.id == dashboard_id,
+            Dashboard.is_public == True
+        )
+    )
+    result = await db.execute(widget_query)
+    widget = result.scalar_one_or_none()
+    
+    if not widget:
+        raise TenantAccessDeniedException("Widget not found, access denied, or private [1].")
+
+    config = widget.query_config
+    event_name = config.get("event_name")
+    time_range_hours = config.get("time_range_hours", 24)
+    interval = config.get("interval", "hour")
+    
+    if not event_name:
+        raise TenantAccessDeniedException("Widget configuration missing event_name.")
+
+    start_time = datetime.now(timezone.utc) - timedelta(hours=time_range_hours)
+
+    time_bucket = func.date_trunc(interval, Event.timestamp).label("interval")
+    analytics_query = (
+        select(time_bucket, func.count(Event.id).label("count"))
+        .where(
+            Event.organization_id == widget.dashboard.organization_id,
+            Event.event_name == event_name,
+            Event.timestamp >= start_time
+        )
+        .group_by(time_bucket)
+        .order_by(time_bucket.asc())
+    )
+    
+    analytics_result = await db.execute(analytics_query)
+    rows = analytics_result.all()
+
+    chart_series = [{"timestamp": r.interval.isoformat(), "value": r.count} for r in rows]
 
     return {
         "widget_id": str(widget_id),
