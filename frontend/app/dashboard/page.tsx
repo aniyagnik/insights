@@ -27,11 +27,21 @@ export default function DashboardPage() {
   const [showLiveStream, setShowLiveStream] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Dashboard creation states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [dashName, setDashName] = useState("");
   const [dashDesc, setDashDesc] = useState("");
   const [isPublic, setIsPublic] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
+
+  // Added: Widget creation states [2]
+  const [isWidgetOpen, setIsWidgetOpen] = useState(false);
+  const [widgetName, setWidgetName] = useState("");
+  const [widgetType, setWidgetType] = useState("line");
+  const [eventName, setEventName] = useState("");
+  const [timeRangeHours, setTimeRangeHours] = useState("24");
+  const [interval, setInterval] = useState("hour");
+  const [widgetLoading, setWidgetLoading] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -85,6 +95,61 @@ export default function DashboardPage() {
     }
   };
 
+  // Added: POST handler to add widgets dynamically [2, 3]
+  const handleCreateWidget = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeDashboard) return;
+    setWidgetLoading(true);
+
+    try {
+      const newWidget = await apiRequest(`/dashboards/${activeDashboard.id}/widgets`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: widgetName,
+          type: widgetType,
+          query_config: {
+            event_name: eventName,
+            time_range_hours: parseInt(timeRangeHours),
+            interval: interval
+          }
+        })
+      });
+
+      // Update both dashboards state array and active viewport to render widget instantly
+      setDashboards((prev) =>
+        prev.map((dash) => {
+          if (dash.id === activeDashboard.id) {
+            return {
+              ...dash,
+              widgets: [...dash.widgets, newWidget]
+            };
+          }
+          return dash;
+        })
+      );
+
+      setActiveDashboard((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          widgets: [...prev.widgets, newWidget]
+        };
+      });
+
+      // Clear states and close
+      setWidgetName("");
+      setWidgetType("line");
+      setEventName("");
+      setTimeRangeHours("24");
+      setInterval("hour");
+      setIsWidgetOpen(false);
+    } catch (err) {
+      console.error("Failed to create widget", err);
+    } finally {
+      setWidgetLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await apiRequest("/auth/logout", { method: "POST" });
@@ -134,7 +199,6 @@ export default function DashboardPage() {
             <p className="text-sm text-slate-500 mb-6">
               Establish your first visual telemetry board to begin tracking live analytics metrics [2].
             </p>
-            {/* Modified: Toggle dashboard creator overlay */}
             <Button onClick={() => setIsCreateOpen(true)} className="mx-auto text-xs">
               Create First Dashboard
             </Button>
@@ -160,10 +224,10 @@ export default function DashboardPage() {
                 </button>
               ))}
               
-              {/* Added: Create Dashboard inline button next to active tabs */}
+              {/* Create Dashboard inline button */}
               <button
                 onClick={() => setIsCreateOpen(true)}
-                className="px-3 py-1 text-xs font-extrabold text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-100 rounded-lg transition ml-1"
+                className="px-3 py-1  text-xs font-extrabold text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-100 rounded-lg transition ml-1"
               >
                 + Add Board
               </button>
@@ -201,12 +265,22 @@ export default function DashboardPage() {
                     <h2 className="text-2xl font-black text-slate-800">{activeDashboard.name}</h2>
                     <p className="text-slate-500 text-sm">{activeDashboard.description}</p>
                   </div>
-                  {/* Share indicator */}
-                  {activeDashboard.is_public && (
-                    <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider border border-emerald-100 select-none">
-                      Public Share Link Active
-                    </span>
-                  )}
+                  
+                  {/* Dashboard Action Header Panel [2] */}
+                  <div className="flex items-center gap-3">
+                    {activeDashboard.is_public && (
+                      <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider border border-emerald-100 select-none">
+                        Public Share Link Active
+                      </span>
+                    )}
+                    {/* Added: Add Widget Action Button */}
+                    <Button
+                      onClick={() => setIsWidgetOpen(true)}
+                      className="px-3 py-1.5 text-xs font-extrabold"
+                    >
+                      + Add Chart Widget
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Dashboard Widgets Layout Grid */}
@@ -231,7 +305,7 @@ export default function DashboardPage() {
         )}
       </main>
 
-      {/* Global Dashboard Creation Modal Form [2] */}
+      {/* Reusable Dashboard Creation Modal Form */}
       <Modal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
@@ -254,7 +328,6 @@ export default function DashboardPage() {
             placeholder="Brief summary of visual metrics"
           />
           
-          {/* Public Sharing Toggle Option */}
           <div className="flex items-center gap-2 pt-2 pb-2">
             <input
               type="checkbox"
@@ -278,6 +351,86 @@ export default function DashboardPage() {
             </Button>
             <Button type="submit" loading={createLoading}>
               Create Dashboard
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Added: Reusable Widget Creation Modal Form [2, 3] */}
+      <Modal
+        isOpen={isWidgetOpen}
+        onClose={() => setIsWidgetOpen(false)}
+        title={`Add Widget to ${activeDashboard?.name}`}
+      >
+        <form onSubmit={handleCreateWidget} className="space-y-4">
+          <Input
+            label="Widget Name"
+            type="text"
+            required
+            value={widgetName}
+            onChange={(e) => setWidgetName(e.target.value)}
+            placeholder="e.g., Active Checkout Count"
+          />
+          
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              Chart Visualization Type
+            </label>
+            <select
+              value={widgetType}
+              onChange={(e) => setWidgetType(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition text-slate-800"
+            >
+              <option value="line">Line Chart</option>
+              <option value="bar">Bar Chart</option>
+              <option value="pie">Pie Chart</option>
+              <option value="kpi">KPI Card</option>
+              <option value="table">Data Table</option>
+            </select>
+          </div>
+
+          <Input
+            label="Target Tracking Event Name"
+            type="text"
+            required
+            value={eventName}
+            onChange={(e) => setEventName(e.target.value)}
+            placeholder="e.g., checkout_completed"
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Lookback Range (Hours)"
+              type="number"
+              required
+              value={timeRangeHours}
+              onChange={(e) => setTimeRangeHours(e.target.value)}
+            />
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                Time Interval Step
+              </label>
+              <select
+                value={interval}
+                onChange={(e) => setInterval(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition text-slate-800"
+              >
+                <option value="hour">Hourly Buckets</option>
+                <option value="day">Daily Buckets</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setIsWidgetOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" loading={widgetLoading}>
+              Add Widget
             </Button>
           </div>
         </form>
