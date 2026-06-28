@@ -222,3 +222,4 @@ The entire application can be managed directly through the Next.js user interfac
     http://127.0.0.1:3000/invite/accept?token=xxxx...
    ```
 5. Open an Incognito window, paste the URL, type a password, and join the workspace!
+6. create alert → ingest events → watch history feed
