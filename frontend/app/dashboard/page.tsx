@@ -5,14 +5,17 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { apiRequest } from "@/lib/api";
 import Button from "@/components/Button";
+import Input from "@/components/Input";
+import Modal from "@/components/Modal";
 import WidgetCard from "@/components/WidgetCard";
-import LiveStreamViewer from "@/components/LiveStreamViewer";  // Imported
+import LiveStreamViewer from "@/components/LiveStreamViewer";
 
 interface Dashboard {
   id: string;
   name: string;
   description: string;
   widgets: any[];
+  is_public: boolean;
 }
 
 export default function DashboardPage() {
@@ -21,8 +24,14 @@ export default function DashboardPage() {
   
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [activeDashboard, setActiveDashboard] = useState<Dashboard | null>(null);
-  const [showLiveStream, setShowLiveStream] = useState(false);  // Added state
+  const [showLiveStream, setShowLiveStream] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [dashName, setDashName] = useState("");
+  const [dashDesc, setDashDesc] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -47,6 +56,35 @@ export default function DashboardPage() {
     fetchDashboards();
   }, [isAuthenticated, router]);
 
+  const handleCreateDashboard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateLoading(true);
+
+    try {
+      const newDash = await apiRequest("/dashboards", {
+        method: "POST",
+        body: JSON.stringify({
+          name: dashName,
+          description: dashDesc,
+          is_public: isPublic
+        })
+      });
+
+      setDashboards((prev) => [...prev, newDash]);
+      setActiveDashboard(newDash);
+      setShowLiveStream(false);
+
+      setDashName("");
+      setDashDesc("");
+      setIsPublic(false);
+      setIsCreateOpen(false);
+    } catch (err) {
+      console.error("Failed to create dashboard", err);
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await apiRequest("/auth/logout", { method: "POST" });
@@ -61,7 +99,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
-        <span className="text-sm font-semibold text-slate-500">Loading Workspace...</span>
+        <span className="text-sm font-semibold text-slate-500 animate-pulse">Loading Workspace...</span>
       </div>
     );
   }
@@ -94,8 +132,12 @@ export default function DashboardPage() {
           <div className="max-w-md mx-auto mt-20 text-center bg-white p-8 rounded-xl border border-slate-100 shadow-sm">
             <h2 className="text-lg font-bold text-slate-800 mb-2">No Dashboards Created</h2>
             <p className="text-sm text-slate-500 mb-6">
-              Establish your first visual telemetry board inside Swagger UI to begin tracking live analytics metrics.
+              Establish your first visual telemetry board to begin tracking live analytics metrics [2].
             </p>
+            {/* Modified: Toggle dashboard creator overlay */}
+            <Button onClick={() => setIsCreateOpen(true)} className="mx-auto text-xs">
+              Create First Dashboard
+            </Button>
           </div>
         ) : (
           <div className="space-y-6">
@@ -106,7 +148,7 @@ export default function DashboardPage() {
                   key={dash.id}
                   onClick={() => {
                     setActiveDashboard(dash);
-                    setShowLiveStream(false);  // Toggle off stream
+                    setShowLiveStream(false);
                   }}
                   className={`px-4 py-1.5 text-sm font-bold rounded-lg transition ${
                     !showLiveStream && activeDashboard?.id === dash.id
@@ -118,11 +160,19 @@ export default function DashboardPage() {
                 </button>
               ))}
               
-              {/* Added: Persistent Live Stream Tab */}
+              {/* Added: Create Dashboard inline button next to active tabs */}
+              <button
+                onClick={() => setIsCreateOpen(true)}
+                className="px-3 py-1 text-xs font-extrabold text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-100 rounded-lg transition ml-1"
+              >
+                + Add Board
+              </button>
+
+              {/* Persistent Live Stream Tab */}
               <button
                 onClick={() => {
                   setShowLiveStream(true);
-                  setActiveDashboard(null);  // Toggle off dashboards
+                  setActiveDashboard(null);
                 }}
                 className={`px-4 py-1.5 text-sm font-bold rounded-lg transition ml-auto flex items-center gap-2 ${
                   showLiveStream
@@ -146,9 +196,17 @@ export default function DashboardPage() {
               </div>
             ) : activeDashboard && (
               <div className="space-y-6">
-                <div>
-                  <h2 className="text-2xl font-black text-slate-800">{activeDashboard.name}</h2>
-                  <p className="text-slate-500 text-sm">{activeDashboard.description}</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-black text-slate-800">{activeDashboard.name}</h2>
+                    <p className="text-slate-500 text-sm">{activeDashboard.description}</p>
+                  </div>
+                  {/* Share indicator */}
+                  {activeDashboard.is_public && (
+                    <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider border border-emerald-100 select-none">
+                      Public Share Link Active
+                    </span>
+                  )}
                 </div>
 
                 {/* Dashboard Widgets Layout Grid */}
@@ -172,6 +230,58 @@ export default function DashboardPage() {
           </div>
         )}
       </main>
+
+      {/* Global Dashboard Creation Modal Form [2] */}
+      <Modal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        title="Create Custom Dashboard"
+      >
+        <form onSubmit={handleCreateDashboard} className="space-y-4">
+          <Input
+            label="Dashboard Name"
+            type="text"
+            required
+            value={dashName}
+            onChange={(e) => setDashName(e.target.value)}
+            placeholder="e.g., Marketing Analytics"
+          />
+          <Input
+            label="Description (Optional)"
+            type="text"
+            value={dashDesc}
+            onChange={(e) => setDashDesc(e.target.value)}
+            placeholder="Brief summary of visual metrics"
+          />
+          
+          {/* Public Sharing Toggle Option */}
+          <div className="flex items-center gap-2 pt-2 pb-2">
+            <input
+              type="checkbox"
+              id="isPublic"
+              checked={isPublic}
+              onChange={(e) => setIsPublic(e.target.checked)}
+              className="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded"
+            />
+            <label htmlFor="isPublic" className="text-xs font-bold text-slate-700 select-none cursor-pointer">
+              Make Dashboard Public (Read-Only Share Link)
+            </label>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setIsCreateOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" loading={createLoading}>
+              Create Dashboard
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
