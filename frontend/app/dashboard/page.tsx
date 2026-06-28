@@ -9,8 +9,8 @@ import Input from "@/components/Input";
 import Modal from "@/components/Modal";
 import WidgetCard from "@/components/WidgetCard";
 import LiveStreamViewer from "@/components/LiveStreamViewer";
-import IntegrationsPanel from "@/components/IntegrationsPanel";  // Imported
-
+import IntegrationsPanel from "@/components/IntegrationsPanel";
+import AlertsAndTeamPanel from "@/components/AlertsAndTeamPanel"; 
 interface Dashboard {
   id: string;
   name: string;
@@ -27,6 +27,7 @@ export default function DashboardPage() {
   const [activeDashboard, setActiveDashboard] = useState<Dashboard | null>(null);
   const [showLiveStream, setShowLiveStream] = useState(false);
   const [showIntegrations, setShowIntegrations] = useState(false);  // Added state [2]
+  const [showTeamAlerts, setShowTeamAlerts] = useState(false); 
   const [loading, setLoading] = useState(true);
 
   // Dashboard creation states
@@ -193,7 +194,7 @@ export default function DashboardPage() {
 
       {/* Workspace Area */}
       <main className="flex-1 p-6">
-        {dashboards.length === 0 && !showLiveStream && !showIntegrations ? (
+        {dashboards.length === 0 && !showLiveStream && !showIntegrations && !showTeamAlerts ? (
           <div className="max-w-md mx-auto mt-20 text-center bg-white p-8 rounded-xl border border-slate-100 shadow-sm">
             <h2 className="text-lg font-bold text-slate-800 mb-2">No Dashboards Created</h2>
             <p className="text-sm text-slate-500 mb-6">
@@ -213,10 +214,11 @@ export default function DashboardPage() {
                   onClick={() => {
                     setActiveDashboard(dash);
                     setShowLiveStream(false);
-                    setShowIntegrations(false);  // Toggle off integrations panel
+                    setShowIntegrations(false);
+                    setShowTeamAlerts(false);  // Toggle off team alerts
                   }}
                   className={`px-4 py-1.5 text-sm font-bold rounded-lg transition ${
-                    !showLiveStream && !showIntegrations && activeDashboard?.id === dash.id
+                    !showLiveStream && !showIntegrations && !showTeamAlerts && activeDashboard?.id === dash.id
                       ? "bg-indigo-600 text-white"
                       : "text-slate-600 hover:bg-slate-100"
                   }`}
@@ -238,7 +240,8 @@ export default function DashboardPage() {
                 onClick={() => {
                   setShowLiveStream(true);
                   setActiveDashboard(null);
-                  setShowIntegrations(false);  // Toggle off integrations
+                  setShowIntegrations(false);
+                  setShowTeamAlerts(false);
                 }}
                 className={`px-4 py-1.5 text-sm font-bold rounded-lg transition ml-auto flex items-center gap-2 ${
                   showLiveStream
@@ -250,12 +253,13 @@ export default function DashboardPage() {
                 Live Stream
               </button>
 
-              {/* Added: Developer Settings Tab [2] */}
+              {/* Developer Settings Tab */}
               <button
                 onClick={() => {
                   setShowIntegrations(true);
                   setShowLiveStream(false);
                   setActiveDashboard(null);
+                  setShowTeamAlerts(false);
                 }}
                 className={`px-4 py-1.5 text-sm font-bold rounded-lg transition flex items-center gap-2 ${
                   showIntegrations
@@ -265,10 +269,33 @@ export default function DashboardPage() {
               >
                 Developer Settings
               </button>
+
+              <button
+                onClick={() => {
+                  setShowTeamAlerts(true);
+                  setShowIntegrations(false);
+                  setShowLiveStream(false);
+                  setActiveDashboard(null);
+                }}
+                className={`px-4 py-1.5 text-sm font-bold rounded-lg transition flex items-center gap-2 ${
+                  showTeamAlerts
+                    ? "bg-indigo-600 text-white"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                Team & Alerts
+              </button>
             </div>
 
-            {/* Display either Integrations Panel, Live Stream, or Active Dashboard Grid */}
-            {showIntegrations ? (
+            {showTeamAlerts ? (
+              <div className="max-w-5xl mx-auto space-y-4">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-800">Workspace Management</h2>
+                  <p className="text-slate-500 text-sm">Onboard colleagues and configure system metric alerts [2].</p>
+                </div>
+                <AlertsAndTeamPanel />
+              </div>
+            ) : showIntegrations ? (
               <div className="max-w-5xl mx-auto space-y-4">
                 <div>
                   <h2 className="text-2xl font-black text-slate-800">Developer Integrations</h2>
