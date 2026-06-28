@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react"; // Added missing useRef import
 import { apiRequest } from "@/lib/api";
 import Input from "./Input";
 import Button from "./Button";
@@ -29,12 +29,18 @@ export default function IntegrationsPanel() {
   const [csvMessage, setCsvMessage] = useState("");
   const [csvError, setCsvError] = useState("");
 
-  // Added: Single Event Simulator States [2]
+  // Single Event Simulator States
   const [simEventName, setSimEventName] = useState("");
   const [simProps, setSimProps] = useState('{\n  "plan": "premium",\n  "tier": "enterprise"\n}');
   const [simLoading, setSimLoading] = useState(false);
   const [simMessage, setSimMessage] = useState("");
   const [simError, setSimError] = useState("");
+
+  // Batch Event Simulator States [2]
+  const [batchProps, setBatchProps] = useState('[\n  {\n    "event_name": "page_view",\n    "properties": { "url": "/pricing" }\n  },\n  {\n    "event_name": "pricing_completed",\n    "properties": { "plan": "enterprise" }\n  }\n]');
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchMessage, setBatchMessage] = useState("");
+  const [batchError, setBatchError] = useState("");
 
   const fetchApiKeys = async () => {
     try {
@@ -129,7 +135,6 @@ export default function IntegrationsPanel() {
     }
   };
 
-  // Added: Submit handler to simulate a single tracking event [2]
   const handleSimulateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!authKey || !simEventName) return;
@@ -138,7 +143,6 @@ export default function IntegrationsPanel() {
     setSimError("");
 
     try {
-      // Safely parse properties text string into a JSON dictionary object
       let parsedProps = {};
       try {
         parsedProps = JSON.parse(simProps);
@@ -173,14 +177,58 @@ export default function IntegrationsPanel() {
     }
   };
 
+  const handleBatchIngest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authKey || !batchProps) return;
+    setBatchLoading(true);
+    setBatchMessage("");
+    setBatchError("");
+
+    try {
+      let parsedEvents = [];
+      try {
+        parsedEvents = JSON.parse(batchProps);
+        if (!Array.isArray(parsedEvents)) {
+          throw new Error("Input must be a valid JSON array of events.");
+        }
+      } catch (pErr: any) {
+        throw new Error(pErr.message || "Invalid JSON array formatting.");
+      }
+
+      const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+      const res = await fetch(`${BACKEND_URL}/ingest/batch`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": authKey
+        },
+        body: JSON.stringify({
+          events: parsedEvents
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Failed to ingest batch events.");
+      }
+
+      setBatchMessage("Batch events ingested and broadcasted successfully!");
+    } catch (err: any) {
+      setBatchError(err.message || "Failed to ingest batch.");
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
   if (fetching) {
     return <div className="text-center text-slate-500 text-sm py-12">Loading Credentials Panel...</div>;
   }
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
-      {/* API Key Management Card */}
-      <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm space-y-6 flex flex-col justify-between">
+return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto items-stretch">
+      
+      {/* API Key Manager */}
+      <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm flex flex-col justify-between h-full space-y-6">
         <div>
           <h2 className="text-lg font-bold text-slate-800">API Key Manager</h2>
           <p className="text-xs text-slate-400 mt-0.5">Generate, rotate, and revoke ingestion authorization keys [2].</p>
@@ -214,7 +262,7 @@ export default function IntegrationsPanel() {
           {apiKeys.length === 0 ? (
             <p className="text-xs text-slate-500 italic">No credentials active. Create your first key above.</p>
           ) : (
-            <div className="divide-y divide-slate-100 border border-slate-100 rounded-lg overflow-hidden max-h-56 overflow-y-auto">
+            <div className="divide-y divide-slate-100 border border-slate-100 rounded-lg overflow-hidden max-h-40 overflow-y-auto">
               {apiKeys.map((key) => (
                 <div key={key.id} className="p-3 bg-slate-50/50 flex items-center justify-between text-xs">
                   <div>
@@ -244,114 +292,159 @@ export default function IntegrationsPanel() {
         </div>
       </div>
 
-      {/* Right Column: CSV Uploader & Single Event Simulator [2] */}
-      <div className="space-y-8 flex flex-col h-full">
-        {/* CSV Bulk Ingestor Card */}
-        <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm space-y-6 flex flex-col justify-between">
+      {/* Batch Event Simulator */}
+      <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm flex flex-col justify-between h-full space-y-6">
+        <div>
+          <h2 className="text-lg font-bold text-slate-800">Batch Event Simulator</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Mock and broadcast arrays of telemetry tracking events [2].</p>
+        </div>
+
+        {batchMessage && (
+          <div className="p-3 text-xs text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-100">
+            {batchMessage}
+          </div>
+        )}
+
+        {batchError && (
+          <div className="p-3 text-xs text-red-600 bg-red-50 rounded-lg border border-red-100">
+            {batchError}
+          </div>
+        )}
+
+        <form onSubmit={handleBatchIngest} className="space-y-4">
+          <Input
+            label="X-API-Key Secret"
+            type="text"
+            required
+            value={authKey}
+            onChange={(e) => setAuthKey(e.target.value)}
+            placeholder="X-API-Key"
+          />
+
           <div>
-            <h2 className="text-lg font-bold text-slate-800">CSV Bulk Ingestor</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Stream event files asynchronously using your secret API key [2].</p>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              Custom Events Payload Array (JSON)
+            </label>
+            <textarea
+              required
+              rows={4}
+              value={batchProps}
+              onChange={(e) => setBatchProps(e.target.value)}
+              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition font-mono text-slate-800"
+            />
           </div>
 
-          {csvMessage && (
-            <div className="p-3 text-xs text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-100">
-              {csvMessage}
-            </div>
-          )}
+          <Button type="submit" loading={batchLoading} disabled={!batchProps || !authKey} className="w-full py-2.5 text-xs">
+            Simulate & Ingest Event Batch
+          </Button>
+        </form>
+      </div>
 
-          {csvError && (
-            <div className="p-3 text-xs text-red-600 bg-red-50 rounded-lg border border-red-100">
-              {csvError}
-            </div>
-          )}
+      {/* Single Event Simulator */}
+      <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm flex flex-col justify-between h-full space-y-6">
+        <div>
+          <h2 className="text-lg font-bold text-slate-800">Single Event Simulator</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Mock and broadcast custom telemetry tracking events instantly [2].</p>
+        </div>
 
-          <form onSubmit={handleCsvUpload} className="space-y-4">
+        {simMessage && (
+          <div className="p-3 text-xs text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-100">
+            {simMessage}
+          </div>
+        )}
+
+        {simError && (
+          <div className="p-3 text-xs text-red-600 bg-red-50 rounded-lg border border-red-100">
+            {simError}
+          </div>
+        )}
+
+        <form onSubmit={handleSimulateEvent} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
             <Input
-              label="X-API-Key Authorization Secret (CSV)"
+              label="X-API-Key Secret"
               type="text"
               required
               value={authKey}
               onChange={(e) => setAuthKey(e.target.value)}
-              placeholder="Paste your pk_live_... key here"
+              placeholder="X-API-Key"
             />
-
-            <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center hover:border-indigo-400 transition cursor-pointer relative bg-slate-50/50">
-              <input
-                type="file"
-                accept=".csv"
-                required
-                onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              />
-              <span className="text-xs text-slate-500 font-semibold block">
-                {csvFile ? `Selected: ${csvFile.name}` : "Click or Drag & Drop .csv file here"}
-              </span>
-              <span className="text-[10px] text-slate-400 mt-1 block">Compatible with standard comma-separated text files.</span>
-            </div>
-
-            <Button type="submit" loading={csvLoading} disabled={!csvFile || !authKey} className="w-full py-2.5 text-xs">
-              Upload & Ingest Bulk Data
-            </Button>
-          </form>
-        </div>
-
-        {/* Added: Single Event Simulator Card [2] */}
-        <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm space-y-6 flex flex-col justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800">Single Event Simulator</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Mock and broadcast custom telemetry tracking events instantly [2].</p>
+            <Input
+              label="Simulated Event Name"
+              type="text"
+              required
+              value={simEventName}
+              onChange={(e) => setSimEventName(e.target.value)}
+              placeholder="e.g., pricing_completed"
+            />
           </div>
 
-          {simMessage && (
-            <div className="p-3 text-xs text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-100">
-              {simMessage}
-            </div>
-          )}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              Custom Properties payload (JSON)
+            </label>
+            <textarea
+              required
+              rows={4}
+              value={simProps}
+              onChange={(e) => setSimProps(e.target.value)}
+              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition font-mono text-slate-800"
+            />
+          </div>
 
-          {simError && (
-            <div className="p-3 text-xs text-red-600 bg-red-50 rounded-lg border border-red-100">
-              {simError}
-            </div>
-          )}
+          <Button type="submit" loading={simLoading} disabled={!simEventName || !authKey} className="w-full py-2.5 text-xs">
+            Simulate & Ingest Event
+          </Button>
+        </form>
+      </div>
 
-          <form onSubmit={handleSimulateEvent} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="X-API-Key Secret"
-                type="text"
-                required
-                value={authKey}
-                onChange={(e) => setAuthKey(e.target.value)}
-                placeholder="X-API-Key"
-              />
-              <Input
-                label="Simulated Event Name"
-                type="text"
-                required
-                value={simEventName}
-                onChange={(e) => setSimEventName(e.target.value)}
-                placeholder="e.g., pricing_completed"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">
-                Custom Properties payload (JSON)
-              </label>
-              <textarea
-                required
-                rows={3}
-                value={simProps}
-                onChange={(e) => setSimProps(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition font-mono text-slate-800"
-              />
-            </div>
-
-            <Button type="submit" loading={simLoading} disabled={!simEventName || !authKey} className="w-full py-2.5 text-xs">
-              Simulate & Ingest Event
-            </Button>
-          </form>
+      {/* CSV Bulk Ingestor */}
+      <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm flex flex-col justify-between h-full space-y-6">
+        <div>
+          <h2 className="text-lg font-bold text-slate-800">CSV Bulk Ingestor</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Stream event files asynchronously using your secure API key [2].</p>
         </div>
+
+        {csvMessage && (
+          <div className="p-3 text-xs text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-100">
+            {csvMessage}
+          </div>
+        )}
+
+        {csvError && (
+          <div className="p-3 text-xs text-red-600 bg-red-50 rounded-lg border border-red-100">
+            {csvError}
+          </div>
+        )}
+
+        <form onSubmit={handleCsvUpload} className="space-y-4 flex-1 flex flex-col justify-between h-full">
+          <Input
+            label="X-API-Key Authorization Secret (CSV)"
+            type="text"
+            required
+            value={authKey}
+            onChange={(e) => setAuthKey(e.target.value)}
+            placeholder="Paste your pk_live_... key here"
+          />
+
+          <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center hover:border-indigo-400 transition cursor-pointer relative bg-slate-50/50 flex-1 flex flex-col justify-center min-h-[110px]">
+            <input
+              type="file"
+              accept=".csv"
+              required
+              onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            />
+            <span className="text-xs text-slate-500 font-semibold block">
+              {csvFile ? `Selected: ${csvFile.name}` : "Click or Drag & Drop .csv file here"}
+            </span>
+            <span className="text-[10px] text-slate-400 mt-1 block">Compatible with standard comma-separated text files.</span>
+          </div>
+
+          <Button type="submit" loading={csvLoading} disabled={!csvFile || !authKey} className="w-full py-2.5 text-xs">
+            Upload & Ingest Bulk Data
+          </Button>
+        </form>
       </div>
     </div>
   );
