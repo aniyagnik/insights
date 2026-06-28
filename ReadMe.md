@@ -1,13 +1,13 @@
 # Real-Time Multi-Tenant Analytics & Reporting Platform
 
-This is a full-stack, production-ready SaaS analytics tool. The application utilizes asynchronous Python architecture on the backend to handle high-throughput event ingestion, and a modern, state-cached Next.js 14 client on the frontend to visualize metrics in real-time.
+A production-grade, full-stack SaaS analytics tool. The application utilizes an asynchronous Python architecture on the backend to handle high-throughput event ingestion and periodic alerting, and a modern, state-cached Next.js 14 client on the frontend to visualize metrics in real-time.
 
 ---
 
-## Architectural & Security Blueprint
+## Architectural & Security Highlights
 
 ### 1. Database Schema & Multi-Tenancy
-* **Secure Identifiers**: All relational tables use UUIDv4 primary keys instead of sequential integers to mitigate IDOR (Insecure Direct Object Reference) and enumeration vectors.
+* **Secure Identifiers**: All relational tables use UUIDv4 primary keys instead of sequential integers to mitigate IDOR (Insecure Direct Object Reference) and resource enumeration attacks.
 * **Tenant-Level Isolation**: Every analytical query, dashboard fetch, and event logging execution is securely bound to the authenticated user's `organization_id` at the query layer.
 * **Optimized Indexing**: The `events` table features composite indices (`ix_events_org_timestamp` and `ix_events_org_name_timestamp`) to ensure high-performance, low-latency chronological queries.
 
@@ -18,7 +18,7 @@ This is a full-stack, production-ready SaaS analytics tool. The application util
 ### 3. Session and Connection Management
 * **Stateless Session Recovery**: Integrates short-lived JWT access tokens alongside long-lived refresh tokens stored inside secure, HTTP-only cookies. On browser refresh, the client silently restores the user session state.
 * **Worker Connection Preservation**: The Celery background worker processes run in separate asyncio event loops. To avoid `RuntimeError: Event loop is closed` errors, the worker uses a dedicated database engine configured with `NullPool`.
-* **CORS Constraints**: The FastAPI application restricts origin access to explicit development hostnames to allow secure cookie credentials sharing between the client and the API server.
+* **CORS Constraints**: The FastAPI application restricts origin access to explicit development and production hostnames to allow secure cookie credentials sharing between the client and the API server.
 
 ---
 
@@ -29,25 +29,26 @@ analytics-platform/
 │
 ├── app/                          # Python FastAPI Backend Folder
 │   ├── api/                      # Routing layers & Dependency Injection
-│   ├── core/                     # Handlers, Security, WebSockets, & Config
+│   ├── core/                     # Handlers, Security, WebSockets, & Exceptions
 │   ├── models/                   # SQLAlchemy 2.0 Database Models
 │   ├── schemas/                  # Pydantic validation schemas
 │   └── worker.py                 # Celery Tasks, Beat Scheduler, & Engines
 │
 ├── frontend/                     # Next.js 14 Frontend Folder
-│   ├── app/                      # Next.js App Router (Layout, Home, Dashboard)
+│   ├── app/                      # Next.js App Router (Layout, Home, Dashboard, Onboarding)
 │   ├── components/               # Reusable UI Elements, Providers, and Charts
 │   ├── lib/                      # Type-safe Fetch API Client
 │   └── store/                    # Zustand Global Auth State Store
 │
 ├── alembic/                      # Alembic Database Migration scripts
+├── Dockerfile                    # Unified Dockerfile for container deployments
+├── start.sh                      # Startup script for Render free tier multi-process runs
+├── .gitignore                    # Local development git ignoring configuration
 ├── requirements.txt              # Backend dependency mapping
 └── README.md                     # Setup and instruction manual
 ```
 
----
-
-## Prerequisites
+### Prerequisites
 
 Ensure the following packages are installed locally:
 
@@ -56,7 +57,7 @@ Ensure the following packages are installed locally:
 * Docker (for PostgreSQL and Redis containers)
 ---
 
-## Setup & Running Instructions
+## Setup & Running Instructions (Local)
 
 ### Step 1: Run Infrastructure (Docker)
 
@@ -77,20 +78,19 @@ docker run --name local-redis \
 
 ### Step 2: Configure and Migrate the Backend
 
-1. Navigate to the project root directory and set up your Python virtual environment:
+Navigate to the project root directory and set up your Python virtual environment:
+
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 ```
 
-
-2. Install Python dependencies:
+Install Python dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-
-3. Create your `.env` configuration file in the project root folder:
+Create your `.env` configuration file in the project root folder:
 ```env
 ENVIRONMENT=local
 PROJECT_NAME="Real-Time Analytics Platform"
@@ -103,12 +103,11 @@ ACCESS_TOKEN_EXPIRE_MINUTES=60
 REFRESH_TOKEN_EXPIRE_DAYS=7
 ```
 
-4. Apply database migrations to provision tables (Users, Orgs, Events, Dashboards, Widgets, Invites, Alerts):
+Apply database migrations to provision tables (`Users`, `Orgs`, `Events`, `Dashboards`, `Widgets`, `Invites`, `Alerts`):
+
 ```bash
 alembic upgrade head
 ```
-
-
 
 ### Step 3: Run Backend Services
 
@@ -122,7 +121,7 @@ Ensure your virtual environment is active in this terminal, and run:
 uvicorn app.main:app --reload --port 8000
 ```
 
-* **Interactive API Documentation:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+* **Interactive API Documentation**: http://127.0.0.1:8000/docs
 
 #### Terminal 2: Celery Worker & Beat Scheduler
 
@@ -132,7 +131,7 @@ Ensure your virtual environment is active in this terminal, and run:
 celery -A app.worker.celery_app worker -B --loglevel=info
 ```
 
-> **Note:** The `-B` flag tells Celery to run both the task worker and the periodic alerting scheduler together in a single loop lifecycle.
+> **Note**: The `-B` flag tells Celery to run both the task worker and the periodic alerting scheduler together in a single loop lifecycle.
 
 ### Step 4: Configure and Run the Frontend
 
@@ -157,69 +156,100 @@ npm run dev
 
 
 
-* **Frontend Access:** [http://127.0.0.1:3000](http://127.0.0.1:3000)
+* **Frontend Access**: http://127.0.0.1:3000
 
 > [!IMPORTANT]
-> **CRITICAL DEVELOPER NOTE:** To allow secure, `HttpOnly` cookie sharing between your frontend and backend locally, always access the frontend on the raw IP **http://127.0.0.1:3000** instead of `http://localhost:3000`. This ensures the hostnames align exactly with your backend URL (http://127.0.0.1:8000), allowing the browser to classify cookie transactions as `Same-Site`.
+> **CRITICAL DEVELOPER NOTE**: To allow secure, `HttpOnly` cookie sharing between your frontend and backend locally, always access the frontend on the raw IP **http://127.0.0.1:3000** instead of `http://localhost:3000`. This ensures the hostnames align exactly with your backend URL (`http://127.0.0.1:8000`), allowing the browser to classify cookie transactions as `Same-Site`.
+
 ---
 
-## End-to-End Verification Guide
+## Production Deployment Guide
 
-To test the entire integrated loop from scratch:
+We use Vercel to host our frontend and Render to host our backend services.
 
-### 1. Register and Log In
+### 1. Backend Deployment (Render Free Tier)
 
-1. Go to [http://127.0.0.1:3000/](http://127.0.0.1:3000/) in your browser.
-2. Since no session exists, you will see the unified Sign-In page.
-3. Sign up an administrative owner account or log in if you have registered one. Once authenticated, you will be redirected to the `/dashboard` workspace.
+Render's free tier does not support separate background workers. To bypass this, we use the root-level `start.sh` startup script to run database migrations, FastAPI, Celery Workers, and Celery Beat concurrently inside a single, free Web Service container.
 
-### 2. Generate an Ingestion API Key
-
-1. In Swagger UI ([http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)), authenticate yourself using your login credentials.
-2. Send a `POST` request to `/api/v1/api-keys/` with payload `{"name": "Client Server"}`.
-3. Copy the returning plain text key (e.g., `pk_live_xxxx...`).
-
-### 3. Ingest Telemetry Data
-
-Send a tracking event via curl:
-
-```bash
-curl -X POST "[http://127.0.0.1:8000/api/v1/ingest/single](http://127.0.0.1:8000/api/v1/ingest/single)" \
-     -H "Content-Type: application/json" \
-     -H "X-API-Key: YOUR_PLAIN_TEXT_KEY_HERE" \
-     -d '{
-       "event_name": "page_view",
-       "properties": {
-         "url": "/pricing",
-         "browser": "Firefox"
-       }
-     }'
-```
-
-Verify that the endpoint returns `202 Accepted` immediately and your active Celery worker log prints the success confirmation.
-
-### 4. Create a Widget and View Recharts Graphs
-
-1. Go to Swagger UI and create a dashboard under `/api/v1/dashboards/`. Save the dashboard id.
-2. Create a widget inside that dashboard via `POST /api/v1/dashboards/{dashboard_id}/widgets` with payload:
-```json
-{
-  "name": "Live Page Views",
-  "type": "line",
-  "query_config": {
-    "event_name": "page_view",
-    "time_range_hours": 24,
-    "interval": "hour"
-  }
-}
-```
+1. Provision a free PostgreSQL instance on Render and a free Redis database on Upstash.
+2. Create a new **Web Service** on Render, pointing to your GitHub repository:
+* **Runtime**: `Docker`
+* **Instance Type**: `Free`
 
 
-3. Refresh your Next.js frontend workspace page ([http://127.0.0.1:3000/dashboard](http://127.0.0.1:3000/dashboard)).
-4. Select your dashboard. Confirm that your Recharts line graph successfully renders your ingested page views.
+3. Configure the following environment variables in the Render dashboard:
+* `DATABASE_URL`: *YOUR_INTERNAL_RENDER_POSTGRESQL_CONNECTION_STRING*
+* `REDIS_URL`: *YOUR_UPSTASH_REDIS_CONNECTION_STRING*
+* `ENVIRONMENT`: `production`
+* `JWT_SECRET_KEY`: *your_secure_production_secret_key*
+* `PORT`: `8000`
 
-### 5. Open Real-Time WebSocket Log Stream
 
-1. In your frontend `/dashboard` page, click on the **Live Stream Viewer** tab in the top right.
-2. Ingest another single or CSV tracking payload via your terminal.
-3. Observe the frontend console. The incoming event payload will instantly print itself onto the terminal logging stream without requiring any page reloads.
+4. Click **Create Web Service**. The container will boot up, automatically run `alembic upgrade head`, and start all background threads.
+
+### 2. Frontend Deployment (Vercel)
+
+1. Import your GitHub repository into Vercel.
+2. Set the **Root Directory** to `frontend`.
+3. Configure your Environment Variables:
+* `NEXT_PUBLIC_API_URL`: Set to your public Render API URL: `https://YOUR_API_SUBDOMAIN.onrender.com/api/v1`
+
+
+4. Click **Deploy**.
+
+> [!IMPORTANT]
+> **Production CORS Update**: After Vercel deploys, copy your production frontend URL (e.g., `https://your-app.vercel.app`) and append it to the `CORSMiddleware` configuration inside your backend's `app/main.py` to permit secure session cookie transfers in production.
+
+---
+
+## End-to-End Verification Guide (Testing via UI)
+
+With our updated frontend panels, you no longer need Swagger or terminal curl scripts to test or demonstrate the application. Everything can be fully managed directly through your Next.js dashboard:
+
+### 1. Register a New Organization & Sign In
+
+* Open your browser and navigate to http://127.0.0.1:3000.
+* Click **"New organization? Create Account"**.
+* Enter your organization name, email, and password. Upon clicking submit, you will be registered on the backend, logged in automatically, and redirected to your `/dashboard` workspace.
+
+### 2. Create Your Dashboard & Widgets
+
+* On your empty dashboard view, click **"Create First Dashboard"**.
+* Set the name to `Production Telemetry`, write an optional description, check **"Make Dashboard Public"** if you want to test public share links, and click **Create**.
+* Click the blue **"+ Add Chart Widget"** button in the top right to configure a chart card:
+* **Name**: `Pricing Signups`
+* **Visualization**: Line Chart (or Bar, Pie, KPI, Table)
+* **Target Tracking Event**: `pricing_completed` *(Note: database matching is case-sensitive!)*
+
+
+
+### 3. Generate API Keys & Simulate Ingestion
+
+* Go to the **Developer Settings** tab on your workspace navigation.
+* Under **API Key Manager**, enter a key name and click **Generate**.
+* Copy your plain-text key from the secure green warning banner. *(This key automatically populates your simulators)*.
+* Under **Single Event Simulator**:
+* Ensure your copied key is pasted in the auth field.
+* Set the event name to `pricing_completed`.
+* Click **Simulate & Ingest Event** 3 to 4 times.
+
+
+* Under **Batch Event Simulator**:
+* Paste an array of events with varied timestamps to test chronological trend lines.
+
+
+* Switch back to your **Production Telemetry** tab. Refresh (or wait for the 30-second TanStack cache auto-refresh). Your Recharts graphs will render your active data points!
+
+### 4. Open Real-Time WebSocket Log Stream
+
+* Click on the **Live Stream** tab.
+* Verify that the indicator dot glows emerald green and reads **Active**.
+* Open a separate browser tab or window on **Developer Settings** and trigger a single or CSV ingestion event.
+* Go back to the **Live Stream** tab. The event will instantly stream onto your terminal logging feed in real-time.
+
+### 5. Onboard Team Members
+
+* Go to the **Team & Alerts** tab.
+* Under **Team Onboarding**, type a colleague's email, assign them a role, and click send.
+* Double-click the generated registration link under "Pending Invites" to copy it.
+* Open an Incognito window, paste the URL, type a password, and join the workspace!
