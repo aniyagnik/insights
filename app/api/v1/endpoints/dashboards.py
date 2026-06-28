@@ -1,14 +1,15 @@
 import uuid
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, status
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.api.deps import get_current_user
 from app.models.user_org import User
-from app.models.event import Event 
+from app.models.event import Event
 from app.models.dashboard import Dashboard, Widget
+from app.core.exceptions import TenantAccessDeniedException
 from app.schemas.dashboard import (
     DashboardCreate,
     DashboardUpdate,
@@ -65,10 +66,7 @@ async def get_dashboard(
     dashboard = result.scalar_one_or_none()
     
     if not dashboard:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Dashboard not found or access denied."
-        )
+        raise TenantAccessDeniedException("Dashboard not found or access denied.")
     return dashboard
 
 @router.put("/{dashboard_id}", response_model=DashboardResponse)
@@ -87,10 +85,7 @@ async def update_dashboard(
     dashboard = result.scalar_one_or_none()
     
     if not dashboard:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Dashboard not found or access denied."
-        )
+        raise TenantAccessDeniedException("Dashboard not found or access denied.")
         
     if payload.name is not None:
         dashboard.name = payload.name
@@ -118,10 +113,7 @@ async def delete_dashboard(
     dashboard = result.scalar_one_or_none()
     
     if not dashboard:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Dashboard not found or access denied."
-        )
+        raise TenantAccessDeniedException("Dashboard not found or access denied.")
         
     await db.delete(dashboard)
     await db.commit()
@@ -143,10 +135,7 @@ async def create_widget(
     dashboard = result.scalar_one_or_none()
     
     if not dashboard:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Dashboard not found or access denied."
-        )
+        raise TenantAccessDeniedException("Dashboard not found or access denied.")
         
     new_widget = Widget(
         dashboard_id=dashboard.id,
@@ -177,10 +166,7 @@ async def get_widget_chart_data(
     widget = result.scalar_one_or_none()
     
     if not widget:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Widget not found or access denied."
-        )
+        raise TenantAccessDeniedException("Widget not found or access denied.")
 
     config = widget.query_config
     event_name = config.get("event_name")
@@ -188,10 +174,7 @@ async def get_widget_chart_data(
     interval = config.get("interval", "hour")  # Default to hourly buckets
     
     if not event_name:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Widget query configuration is missing 'event_name'."
-        )
+        raise TenantAccessDeniedException("Widget query configuration is missing 'event_name'.")
 
     start_time = datetime.now(timezone.utc) - timedelta(hours=time_range_hours)
 

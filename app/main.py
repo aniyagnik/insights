@@ -14,6 +14,7 @@ from app.api.v1.endpoints.invites import router as invites_router
 from app.api.v1.endpoints.dashboards import router as dashboards_router 
 from app.api.v1.endpoints.alerts import router as alerts_router
 from app.api.v1.endpoints.ws import router as ws_router 
+from app.core.exceptions import register_exception_handlers 
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,6 +37,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+register_exception_handlers(app)
 
 # Register routers
 app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"])
