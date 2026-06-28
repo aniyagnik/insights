@@ -3,7 +3,8 @@ from app.models.user_org import User, Organization, UserRole
 from app.models.event import Event
 from app.models.api_key import ApiKey
 from app.models.invitation import Invitation
-from app.models.dashboard import Dashboard, Widget, WidgetType 
+from app.models.dashboard import Dashboard, Widget, WidgetType
+from app.models.alert import AlertRule, AlertHistory, AlertStatus  # Imported
 
 __all__ = [
     "Base", 
@@ -15,5 +16,8 @@ __all__ = [
     "Invitation",
     "Dashboard",
     "Widget",
-    "WidgetType"
+    "WidgetType",
+    "AlertRule",
+    "AlertHistory",
+    "AlertStatus"
 ]
