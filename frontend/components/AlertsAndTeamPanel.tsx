@@ -40,6 +40,11 @@ export default function AlertsAndTeamPanel() {
 
   const [fetching, setFetching] = useState(true);
 
+  const [origin, setOrigin] = useState("");
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+  
   const fetchData = async () => {
     try {
       const [invitesData, alertsData] = await Promise.all([
@@ -117,6 +122,37 @@ export default function AlertsAndTeamPanel() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
+       {/* Team Onboarding Card */}
+      <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm space-y-6 flex flex-col justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-slate-800">Team Onboarding</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Invite new colleagues and assign workspace roles [2].</p>
+        </div>
+
+        {/* ... (invite create form remains unchanged) ... */}
+
+        <div className="space-y-3">
+          <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">Pending Invites</h3>
+          {invites.length === 0 ? (
+            <p className="text-xs text-slate-500 italic">No pending team invitations found.</p>
+          ) : (
+            <div className="divide-y divide-slate-100 border border-slate-100 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+              {invites.map((inv) => (
+                <div key={inv.id} className="p-3 bg-slate-50/50 flex items-center justify-between text-xs gap-4">
+                  <div className="shrink-0">
+                    <p className="font-semibold text-slate-800 truncate max-w-[100px]">{inv.email}</p>
+                    <p className="font-mono text-[9px] text-slate-400 mt-0.5">Role: {inv.role}</p>
+                  </div>
+                  {/* Modified: Renders the full copyable onboarding link dynamically [2] */}
+                  <span className="font-mono text-[9px] bg-white border border-slate-200 text-indigo-600 px-2 py-1 rounded truncate select-all">
+                    {origin}/invite/accept?token={inv.token}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
       {/* Left Card: Team Invitations [2] */}
       <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm space-y-6 flex flex-col justify-between">
         <div>
