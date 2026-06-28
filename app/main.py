@@ -13,6 +13,7 @@ from app.api.v1.endpoints.ingest import router as ingest_router
 from app.api.v1.endpoints.invites import router as invites_router
 from app.api.v1.endpoints.dashboards import router as dashboards_router 
 from app.api.v1.endpoints.alerts import router as alerts_router
+from app.api.v1.endpoints.ws import router as ws_router 
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,6 +45,7 @@ app.include_router(ingest_router, prefix=f"{settings.API_V1_STR}/ingest", tags=[
 app.include_router(invites_router, prefix=f"{settings.API_V1_STR}/invites", tags=["Invitations"])
 app.include_router(dashboards_router, prefix=f"{settings.API_V1_STR}/dashboards", tags=["Dashboards"])
 app.include_router(alerts_router, prefix=f"{settings.API_V1_STR}/alerts", tags=["Alerts"])
+app.include_router(ws_router, prefix=f"{settings.API_V1_STR}/ws", tags=["WebSockets"])
 
 @app.get("/health")
 async def health_check(db: AsyncSession = Depends(get_db)):

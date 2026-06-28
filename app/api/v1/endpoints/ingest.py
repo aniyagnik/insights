@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, status, UploadFile, File, HTTPException
 from app.api.deps import get_api_key_org_id
 from app.schemas.event import EventIngestSingle, EventIngestBatch
 from app.worker import process_events_task
+from app.core.websocket import manager
 
 router = APIRouter()
 
@@ -16,7 +17,7 @@ async def ingest_single_event(
     payload: EventIngestSingle,
     org_id: Annotated[uuid.UUID, Depends(get_api_key_org_id)]
 ):
-    """Queue a single tracking event asynchronously inside the task broker."""
+    """Queue event in Celery and instantly broadcast to connected telemetry web clients."""
     timestamp = payload.timestamp or datetime.now(timezone.utc)
     event_data = {
         "event_name": payload.event_name,
@@ -25,6 +26,11 @@ async def ingest_single_event(
     }
     
     process_events_task.delay([event_data], str(org_id))
+    
+    await manager.broadcast_to_org(str(org_id), {
+        "type": "live_event",
+        "data": event_data
+    })
     
     return {
         "status": "queued", 
@@ -36,7 +42,7 @@ async def ingest_batch_events(
     payload: EventIngestBatch,
     org_id: Annotated[uuid.UUID, Depends(get_api_key_org_id)]
 ):
-    """Queue an array of tracking events inside the task broker."""
+    """Queue event array in Celery and broadcast to connected telemetry web clients."""
     events_data = []
     for item in payload.events:
         timestamp = item.timestamp or datetime.now(timezone.utc)
@@ -47,6 +53,11 @@ async def ingest_batch_events(
         })
     
     process_events_task.delay(events_data, str(org_id))
+    
+    await manager.broadcast_to_org(str(org_id), {
+        "type": "batch",
+        "events": events_data
+    })
     
     return {
         "status": "queued",
@@ -97,6 +108,10 @@ async def ingest_csv_file(
 
         process_events_task.delay(events_data, str(org_id))
 
+        await manager.broadcast_to_org(str(org_id), {
+            "type": "batch",
+            "events": events_data
+        })
         return {
             "status": "queued",
             "message": f"CSV parsed successfully. {len(events_data)} events queued for background processing."
