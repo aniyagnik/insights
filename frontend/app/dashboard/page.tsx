@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { apiRequest } from "@/lib/api";
 import Button from "@/components/Button";
-import WidgetCard from "@/components/WidgetCard"; 
+import WidgetCard from "@/components/WidgetCard";
+import LiveStreamViewer from "@/components/LiveStreamViewer";  // Imported
+
 interface Dashboard {
   id: string;
   name: string;
@@ -19,6 +21,7 @@ export default function DashboardPage() {
   
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [activeDashboard, setActiveDashboard] = useState<Dashboard | null>(null);
+  const [showLiveStream, setShowLiveStream] = useState(false);  // Added state
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -87,7 +90,7 @@ export default function DashboardPage() {
 
       {/* Workspace Area */}
       <main className="flex-1 p-6">
-        {dashboards.length === 0 ? (
+        {dashboards.length === 0 && !showLiveStream ? (
           <div className="max-w-md mx-auto mt-20 text-center bg-white p-8 rounded-xl border border-slate-100 shadow-sm">
             <h2 className="text-lg font-bold text-slate-800 mb-2">No Dashboards Created</h2>
             <p className="text-sm text-slate-500 mb-6">
@@ -96,14 +99,17 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Horizontal Dashboard Selector */}
+            {/* Horizontal Selector Panel */}
             <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
               {dashboards.map((dash) => (
                 <button
                   key={dash.id}
-                  onClick={() => setActiveDashboard(dash)}
+                  onClick={() => {
+                    setActiveDashboard(dash);
+                    setShowLiveStream(false);  // Toggle off stream
+                  }}
                   className={`px-4 py-1.5 text-sm font-bold rounded-lg transition ${
-                    activeDashboard?.id === dash.id
+                    !showLiveStream && activeDashboard?.id === dash.id
                       ? "bg-indigo-600 text-white"
                       : "text-slate-600 hover:bg-slate-100"
                   }`}
@@ -111,10 +117,34 @@ export default function DashboardPage() {
                   {dash.name}
                 </button>
               ))}
+              
+              {/* Added: Persistent Live Stream Tab */}
+              <button
+                onClick={() => {
+                  setShowLiveStream(true);
+                  setActiveDashboard(null);  // Toggle off dashboards
+                }}
+                className={`px-4 py-1.5 text-sm font-bold rounded-lg transition ml-auto flex items-center gap-2 ${
+                  showLiveStream
+                    ? "bg-indigo-600 text-white"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full bg-emerald-500 ${showLiveStream ? "animate-ping" : ""}`}></span>
+                Live Stream Viewer
+              </button>
             </div>
 
-            {/* Selected Dashboard Metrics Grid */}
-            {activeDashboard && (
+            {/* Display either Live Stream Logger or Active Dashboard Widgets Grid */}
+            {showLiveStream ? (
+              <div className="max-w-4xl mx-auto space-y-4">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-800">Live Telemetry Feed</h2>
+                  <p className="text-slate-500 text-sm">Tail incoming multi-tenant ingestion events in real-time over secure WebSockets.</p>
+                </div>
+                <LiveStreamViewer />
+              </div>
+            ) : activeDashboard && (
               <div className="space-y-6">
                 <div>
                   <h2 className="text-2xl font-black text-slate-800">{activeDashboard.name}</h2>
