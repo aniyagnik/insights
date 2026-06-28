@@ -20,12 +20,21 @@ export default function IntegrationsPanel() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
-  // CSV Ingestion States
+  // Shared Authorization State [2]
   const [authKey, setAuthKey] = useState("");
+
+  // CSV Ingestion States
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvLoading, setCsvLoading] = useState(false);
   const [csvMessage, setCsvMessage] = useState("");
   const [csvError, setCsvError] = useState("");
+
+  // Added: Single Event Simulator States [2]
+  const [simEventName, setSimEventName] = useState("");
+  const [simProps, setSimProps] = useState('{\n  "plan": "premium",\n  "tier": "enterprise"\n}');
+  const [simLoading, setSimLoading] = useState(false);
+  const [simMessage, setSimMessage] = useState("");
+  const [simError, setSimError] = useState("");
 
   const fetchApiKeys = async () => {
     try {
@@ -52,7 +61,7 @@ export default function IntegrationsPanel() {
         body: JSON.stringify({ name: keyName })
       });
       setNewPlainKey(data.plain_key);
-      setAuthKey(data.plain_key); // Auto-fill authorization field for easy CSV testing [2]
+      setAuthKey(data.plain_key); // Auto-fill authorization fields [2]
       setKeyName("");
       fetchApiKeys();
     } catch (err) {
@@ -97,7 +106,6 @@ export default function IntegrationsPanel() {
       const formData = new FormData();
       formData.append("file", csvFile);
 
-      // Read target backend URL
       const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
       const res = await fetch(`${BACKEND_URL}/ingest/csv`, {
         method: "POST",
@@ -118,6 +126,50 @@ export default function IntegrationsPanel() {
       setCsvError(err.message || "Failed to upload CSV.");
     } finally {
       setCsvLoading(false);
+    }
+  };
+
+  // Added: Submit handler to simulate a single tracking event [2]
+  const handleSimulateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authKey || !simEventName) return;
+    setSimLoading(true);
+    setSimMessage("");
+    setSimError("");
+
+    try {
+      // Safely parse properties text string into a JSON dictionary object
+      let parsedProps = {};
+      try {
+        parsedProps = JSON.parse(simProps);
+      } catch (pErr) {
+        throw new Error("Invalid properties JSON syntax formatting.");
+      }
+
+      const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+      const res = await fetch(`${BACKEND_URL}/ingest/single`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": authKey
+        },
+        body: JSON.stringify({
+          event_name: simEventName,
+          properties: parsedProps
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Failed to ingest simulated event.");
+      }
+
+      setSimMessage("Event simulated and broadcasted successfully!");
+      setSimEventName("");
+    } catch (err: any) {
+      setSimError(err.message || "Failed to ingest event.");
+    } finally {
+      setSimLoading(false);
     }
   };
 
@@ -192,53 +244,114 @@ export default function IntegrationsPanel() {
         </div>
       </div>
 
-      {/* CSV Bulk Ingestion Card */}
-      <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm space-y-6 flex flex-col justify-between h-full">
-        <div>
-          <h2 className="text-lg font-bold text-slate-800">CSV Bulk Ingestor</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Stream event files asynchronously using your secret API key [2].</p>
+      {/* Right Column: CSV Uploader & Single Event Simulator [2] */}
+      <div className="space-y-8 flex flex-col h-full">
+        {/* CSV Bulk Ingestor Card */}
+        <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm space-y-6 flex flex-col justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">CSV Bulk Ingestor</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Stream event files asynchronously using your secret API key [2].</p>
+          </div>
+
+          {csvMessage && (
+            <div className="p-3 text-xs text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-100">
+              {csvMessage}
+            </div>
+          )}
+
+          {csvError && (
+            <div className="p-3 text-xs text-red-600 bg-red-50 rounded-lg border border-red-100">
+              {csvError}
+            </div>
+          )}
+
+          <form onSubmit={handleCsvUpload} className="space-y-4">
+            <Input
+              label="X-API-Key Authorization Secret (CSV)"
+              type="text"
+              required
+              value={authKey}
+              onChange={(e) => setAuthKey(e.target.value)}
+              placeholder="Paste your pk_live_... key here"
+            />
+
+            <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center hover:border-indigo-400 transition cursor-pointer relative bg-slate-50/50">
+              <input
+                type="file"
+                accept=".csv"
+                required
+                onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+              <span className="text-xs text-slate-500 font-semibold block">
+                {csvFile ? `Selected: ${csvFile.name}` : "Click or Drag & Drop .csv file here"}
+              </span>
+              <span className="text-[10px] text-slate-400 mt-1 block">Compatible with standard comma-separated text files.</span>
+            </div>
+
+            <Button type="submit" loading={csvLoading} disabled={!csvFile || !authKey} className="w-full py-2.5 text-xs">
+              Upload & Ingest Bulk Data
+            </Button>
+          </form>
         </div>
 
-        {csvMessage && (
-          <div className="p-3 text-xs text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-100">
-            {csvMessage}
-          </div>
-        )}
-
-        {csvError && (
-          <div className="p-3 text-xs text-red-600 bg-red-50 rounded-lg border border-red-100">
-            {csvError}
-          </div>
-        )}
-
-        <form onSubmit={handleCsvUpload} className="space-y-4 flex-1 flex flex-col justify-between">
-          <Input
-            label="X-API-Key Authorization Secret"
-            type="text"
-            required
-            value={authKey}
-            onChange={(e) => setAuthKey(e.target.value)}
-            placeholder="Paste your pk_live_... key here"
-          />
-
-          <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center hover:border-indigo-400 transition cursor-pointer relative bg-slate-50/50">
-            <input
-              type="file"
-              accept=".csv"
-              required
-              onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            />
-            <span className="text-xs text-slate-500 font-semibold block">
-              {csvFile ? `Selected: ${csvFile.name}` : "Click or Drag & Drop .csv file here"}
-            </span>
-            <span className="text-[10px] text-slate-400 mt-1 block">Compatible with standard comma-separated text files.</span>
+        {/* Added: Single Event Simulator Card [2] */}
+        <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm space-y-6 flex flex-col justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">Single Event Simulator</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Mock and broadcast custom telemetry tracking events instantly [2].</p>
           </div>
 
-          <Button type="submit" loading={csvLoading} disabled={!csvFile || !authKey} className="w-full py-2.5 text-xs mt-4">
-            Upload & Ingest Bulk Data
-          </Button>
-        </form>
+          {simMessage && (
+            <div className="p-3 text-xs text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-100">
+              {simMessage}
+            </div>
+          )}
+
+          {simError && (
+            <div className="p-3 text-xs text-red-600 bg-red-50 rounded-lg border border-red-100">
+              {simError}
+            </div>
+          )}
+
+          <form onSubmit={handleSimulateEvent} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="X-API-Key Secret"
+                type="text"
+                required
+                value={authKey}
+                onChange={(e) => setAuthKey(e.target.value)}
+                placeholder="X-API-Key"
+              />
+              <Input
+                label="Simulated Event Name"
+                type="text"
+                required
+                value={simEventName}
+                onChange={(e) => setSimEventName(e.target.value)}
+                placeholder="e.g., pricing_completed"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                Custom Properties payload (JSON)
+              </label>
+              <textarea
+                required
+                rows={3}
+                value={simProps}
+                onChange={(e) => setSimProps(e.target.value)}
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition font-mono text-slate-800"
+              />
+            </div>
+
+            <Button type="submit" loading={simLoading} disabled={!simEventName || !authKey} className="w-full py-2.5 text-xs">
+              Simulate & Ingest Event
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
   );
