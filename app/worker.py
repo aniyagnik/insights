@@ -78,7 +78,7 @@ def process_events_task(events_data: list[dict], org_id_str: str):
 
 @celery_app.task(name="send_invitation_email_task")
 def send_invitation_email_task(email: str, org_name: str, invite_link: str):
-    """Asynchronously log a secure onboarding invitation email dispatch [2]."""
+    """Asynchronously log a secure onboarding invitation email dispatch"""
     print(
         f"\n"
         f"======================================================================\n"

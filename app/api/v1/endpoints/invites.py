@@ -23,7 +23,7 @@ async def create_invitation(
     current_user: User = Depends(RoleChecker([UserRole.OWNER, UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ):
-    """Generate a secure onboarding invitation token for a new team member [2]."""
+    """Generate a secure onboarding invitation token for a new team member."""
     user_query = select(User).where(User.email == payload.email)
     user_res = await db.execute(user_query)
     if user_res.scalar_one_or_none():

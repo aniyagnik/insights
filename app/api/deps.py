@@ -23,7 +23,7 @@ redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
 async def is_rate_limited(key_identifier: str, limit: int = 100, window: int = 60) -> bool:
     """
     Sliding-window rate limiter using Redis sorted sets (zset).
-    Prunes timestamps older than the sliding window and evaluates current frequency [2, 4].
+    Prunes timestamps older than the sliding window and evaluates current frequency.
     """
     now = datetime.now(timezone.utc).timestamp()
     clear_before = now - window
@@ -45,7 +45,7 @@ async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
     db: Annotated[AsyncSession, Depends(get_db)]
 ) -> User:
-    """Extract, decode, and validate the active user using their JWT access token [2]."""
+    """Extract, decode, and validate the active user using their JWT access token"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -84,7 +84,7 @@ async def get_current_user(
 
 
 class RoleChecker:
-    """Class dependency to enforce Role-Based Access Control on targeted endpoints [2]."""
+    """Class dependency to enforce Role-Based Access Control on targeted endpoints."""
     def __init__(self, allowed_roles: list[UserRole]):
         self.allowed_roles = allowed_roles
 
@@ -101,7 +101,7 @@ async def get_api_key_org_id(
     api_key: Annotated[str | None, Depends(api_key_header)],
     db: Annotated[AsyncSession, Depends(get_db)]
 ) -> uuid.UUID:
-    """Validate X-API-Key custom header, check active rate limits, and yield org ID [2, 4]."""
+    """Validate X-API-Key custom header, check active rate limits, and yield org ID."""
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -129,7 +129,7 @@ async def get_api_key_org_id(
             detail="Invalid or deactivated API Key."
         )
         
-    # Enforce Sliding Window Rate Limiting (100 requests per 60 seconds) per API Key [2, 4]
+    # Enforce Sliding Window Rate Limiting (100 requests per 60 seconds) per API Key
     if await is_rate_limited(str(db_key.id), limit=100, window=60):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,

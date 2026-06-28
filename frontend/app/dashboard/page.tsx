@@ -26,7 +26,7 @@ export default function DashboardPage() {
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [activeDashboard, setActiveDashboard] = useState<Dashboard | null>(null);
   const [showLiveStream, setShowLiveStream] = useState(false);
-  const [showIntegrations, setShowIntegrations] = useState(false);  // Added state [2]
+  const [showIntegrations, setShowIntegrations] = useState(false);  
   const [showTeamAlerts, setShowTeamAlerts] = useState(false); 
   const [loading, setLoading] = useState(true);
 
@@ -198,7 +198,7 @@ export default function DashboardPage() {
           <div className="max-w-md mx-auto mt-20 text-center bg-white p-8 rounded-xl border border-slate-100 shadow-sm">
             <h2 className="text-lg font-bold text-slate-800 mb-2">No Dashboards Created</h2>
             <p className="text-sm text-slate-500 mb-6">
-              Establish your first visual telemetry board to begin tracking live analytics metrics [2].
+              Establish your first visual telemetry board to begin tracking live analytics metrics.
             </p>
             <Button onClick={() => setIsCreateOpen(true)} className="mx-auto text-xs">
               Create First Dashboard
@@ -291,7 +291,7 @@ export default function DashboardPage() {
               <div className="max-w-5xl mx-auto space-y-4">
                 <div>
                   <h2 className="text-2xl font-black text-slate-800">Workspace Management</h2>
-                  <p className="text-slate-500 text-sm">Onboard colleagues and configure system metric alerts [2].</p>
+                  <p className="text-slate-500 text-sm">Onboard colleagues and configure system metric alerts.</p>
                 </div>
                 <AlertsAndTeamPanel />
               </div>
@@ -299,7 +299,7 @@ export default function DashboardPage() {
               <div className="max-w-5xl mx-auto space-y-4">
                 <div>
                   <h2 className="text-2xl font-black text-slate-800">Developer Integrations</h2>
-                  <p className="text-slate-500 text-sm">Provision access credentials and upload bulk telemetry records [2].</p>
+                  <p className="text-slate-500 text-sm">Provision access credentials and upload bulk telemetry records.</p>
                 </div>
                 <IntegrationsPanel />
               </div>

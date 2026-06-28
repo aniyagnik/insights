@@ -216,7 +216,7 @@ async def get_public_dashboard(
     dashboard_id: uuid.UUID,
     db: AsyncSession = Depends(get_db)
 ):
-    """Fetch a public, read-only dashboard by ID (No session auth required) [2]."""
+    """Fetch a public, read-only dashboard by ID (No session auth required)."""
     query = select(Dashboard).where(
         Dashboard.id == dashboard_id,
         Dashboard.is_public == True
@@ -225,7 +225,7 @@ async def get_public_dashboard(
     dashboard = result.scalar_one_or_none()
     
     if not dashboard:
-        raise TenantAccessDeniedException("Dashboard not found, access denied, or private [1].")
+        raise TenantAccessDeniedException("Dashboard not found, access denied, or private.")
     return dashboard
 
 
@@ -235,7 +235,7 @@ async def get_public_widget_chart_data(
     widget_id: uuid.UUID,
     db: AsyncSession = Depends(get_db)
 ):
-    """Execute a public widget's query configuration to fetch aggregated data (No auth required) [2, 3]."""
+    """Execute a public widget's query configuration to fetch aggregated data (No auth required)."""
     widget_query = (
         select(Widget)
         .options(joinedload(Widget.dashboard))
@@ -250,7 +250,7 @@ async def get_public_widget_chart_data(
     widget = result.scalar_one_or_none()
     
     if not widget:
-        raise TenantAccessDeniedException("Widget not found, access denied, or private [1].")
+        raise TenantAccessDeniedException("Widget not found, access denied, or private.")
 
     config = widget.query_config
     event_name = config.get("event_name")

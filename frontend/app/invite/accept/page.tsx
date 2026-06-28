@@ -31,7 +31,7 @@ function AcceptInviteForm() {
       });
       setSuccess("Account successfully registered!");
       
-      // 2. Redirect back to unified root login page after 2 seconds [2]
+      // 2. Redirect back to unified root login page after 2 seconds
       setTimeout(() => {
         router.push("/");
       }, 2000);

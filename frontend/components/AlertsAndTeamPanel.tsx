@@ -126,7 +126,7 @@ export default function AlertsAndTeamPanel() {
       <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm space-y-6 flex flex-col justify-between">
         <div>
           <h2 className="text-lg font-bold text-slate-800">Team Onboarding</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Invite new colleagues and assign workspace roles [2].</p>
+          <p className="text-xs text-slate-400 mt-0.5">Invite new colleagues and assign workspace roles.</p>
         </div>
 
         {/* ... (invite create form remains unchanged) ... */}
@@ -157,7 +157,7 @@ export default function AlertsAndTeamPanel() {
       <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm space-y-6 flex flex-col justify-between">
         <div>
           <h2 className="text-lg font-bold text-slate-800">Team Onboarding</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Invite new colleagues and assign workspace roles [2].</p>
+          <p className="text-xs text-slate-400 mt-0.5">Invite new colleagues and assign workspace roles.</p>
         </div>
 
         <form onSubmit={handleCreateInvite} className="space-y-4">
@@ -216,7 +216,7 @@ export default function AlertsAndTeamPanel() {
       <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm space-y-6 flex flex-col justify-between">
         <div>
           <h2 className="text-lg font-bold text-slate-800">Metrics Alert Rules</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Define sliding-window metric thresholds monitored by Celery Beat [2].</p>
+          <p className="text-xs text-slate-400 mt-0.5">Define sliding-window metric thresholds monitored by Celery Beat.</p>
         </div>
 
         <form onSubmit={handleCreateAlert} className="space-y-4">

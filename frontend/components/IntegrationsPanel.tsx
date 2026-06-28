@@ -296,7 +296,7 @@ return (
       <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm flex flex-col justify-between h-full space-y-6">
         <div>
           <h2 className="text-lg font-bold text-slate-800">Batch Event Simulator</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Mock and broadcast arrays of telemetry tracking events [2].</p>
+          <p className="text-xs text-slate-400 mt-0.5">Mock and broadcast arrays of telemetry tracking events.</p>
         </div>
 
         {batchMessage && (
@@ -344,7 +344,7 @@ return (
       <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm flex flex-col justify-between h-full space-y-6">
         <div>
           <h2 className="text-lg font-bold text-slate-800">Single Event Simulator</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Mock and broadcast custom telemetry tracking events instantly [2].</p>
+          <p className="text-xs text-slate-400 mt-0.5">Mock and broadcast custom telemetry tracking events instantly.</p>
         </div>
 
         {simMessage && (
@@ -402,7 +402,7 @@ return (
       <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm flex flex-col justify-between h-full space-y-6">
         <div>
           <h2 className="text-lg font-bold text-slate-800">CSV Bulk Ingestor</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Stream event files asynchronously using your secure API key [2].</p>
+          <p className="text-xs text-slate-400 mt-0.5">Stream event files asynchronously using your secure API key.</p>
         </div>
 
         {csvMessage && (
