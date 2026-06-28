@@ -9,6 +9,7 @@ import Input from "@/components/Input";
 import Modal from "@/components/Modal";
 import WidgetCard from "@/components/WidgetCard";
 import LiveStreamViewer from "@/components/LiveStreamViewer";
+import IntegrationsPanel from "@/components/IntegrationsPanel";  // Imported
 
 interface Dashboard {
   id: string;
@@ -25,6 +26,7 @@ export default function DashboardPage() {
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [activeDashboard, setActiveDashboard] = useState<Dashboard | null>(null);
   const [showLiveStream, setShowLiveStream] = useState(false);
+  const [showIntegrations, setShowIntegrations] = useState(false);  // Added state [2]
   const [loading, setLoading] = useState(true);
 
   // Dashboard creation states
@@ -34,7 +36,7 @@ export default function DashboardPage() {
   const [isPublic, setIsPublic] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
 
-  // Added: Widget creation states [2]
+  // Widget creation states
   const [isWidgetOpen, setIsWidgetOpen] = useState(false);
   const [widgetName, setWidgetName] = useState("");
   const [widgetType, setWidgetType] = useState("line");
@@ -83,6 +85,7 @@ export default function DashboardPage() {
       setDashboards((prev) => [...prev, newDash]);
       setActiveDashboard(newDash);
       setShowLiveStream(false);
+      setShowIntegrations(false);  // Ensure closed on select
 
       setDashName("");
       setDashDesc("");
@@ -95,7 +98,6 @@ export default function DashboardPage() {
     }
   };
 
-  // Added: POST handler to add widgets dynamically [2, 3]
   const handleCreateWidget = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeDashboard) return;
@@ -115,7 +117,6 @@ export default function DashboardPage() {
         })
       });
 
-      // Update both dashboards state array and active viewport to render widget instantly
       setDashboards((prev) =>
         prev.map((dash) => {
           if (dash.id === activeDashboard.id) {
@@ -136,7 +137,6 @@ export default function DashboardPage() {
         };
       });
 
-      // Clear states and close
       setWidgetName("");
       setWidgetType("line");
       setEventName("");
@@ -193,7 +193,7 @@ export default function DashboardPage() {
 
       {/* Workspace Area */}
       <main className="flex-1 p-6">
-        {dashboards.length === 0 && !showLiveStream ? (
+        {dashboards.length === 0 && !showLiveStream && !showIntegrations ? (
           <div className="max-w-md mx-auto mt-20 text-center bg-white p-8 rounded-xl border border-slate-100 shadow-sm">
             <h2 className="text-lg font-bold text-slate-800 mb-2">No Dashboards Created</h2>
             <p className="text-sm text-slate-500 mb-6">
@@ -213,9 +213,10 @@ export default function DashboardPage() {
                   onClick={() => {
                     setActiveDashboard(dash);
                     setShowLiveStream(false);
+                    setShowIntegrations(false);  // Toggle off integrations panel
                   }}
                   className={`px-4 py-1.5 text-sm font-bold rounded-lg transition ${
-                    !showLiveStream && activeDashboard?.id === dash.id
+                    !showLiveStream && !showIntegrations && activeDashboard?.id === dash.id
                       ? "bg-indigo-600 text-white"
                       : "text-slate-600 hover:bg-slate-100"
                   }`}
@@ -227,7 +228,7 @@ export default function DashboardPage() {
               {/* Create Dashboard inline button */}
               <button
                 onClick={() => setIsCreateOpen(true)}
-                className="px-3 py-1  text-xs font-extrabold text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-100 rounded-lg transition ml-1"
+                className="px-3 py-1 text-xs font-extrabold text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-100 rounded-lg transition ml-1"
               >
                 + Add Board
               </button>
@@ -237,6 +238,7 @@ export default function DashboardPage() {
                 onClick={() => {
                   setShowLiveStream(true);
                   setActiveDashboard(null);
+                  setShowIntegrations(false);  // Toggle off integrations
                 }}
                 className={`px-4 py-1.5 text-sm font-bold rounded-lg transition ml-auto flex items-center gap-2 ${
                   showLiveStream
@@ -245,12 +247,36 @@ export default function DashboardPage() {
                 }`}
               >
                 <span className={`w-2 h-2 rounded-full bg-emerald-500 ${showLiveStream ? "animate-ping" : ""}`}></span>
-                Live Stream Viewer
+                Live Stream
+              </button>
+
+              {/* Added: Developer Settings Tab [2] */}
+              <button
+                onClick={() => {
+                  setShowIntegrations(true);
+                  setShowLiveStream(false);
+                  setActiveDashboard(null);
+                }}
+                className={`px-4 py-1.5 text-sm font-bold rounded-lg transition flex items-center gap-2 ${
+                  showIntegrations
+                    ? "bg-indigo-600 text-white"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                Developer Settings
               </button>
             </div>
 
-            {/* Display either Live Stream Logger or Active Dashboard Widgets Grid */}
-            {showLiveStream ? (
+            {/* Display either Integrations Panel, Live Stream, or Active Dashboard Grid */}
+            {showIntegrations ? (
+              <div className="max-w-5xl mx-auto space-y-4">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-800">Developer Integrations</h2>
+                  <p className="text-slate-500 text-sm">Provision access credentials and upload bulk telemetry records [2].</p>
+                </div>
+                <IntegrationsPanel />
+              </div>
+            ) : showLiveStream ? (
               <div className="max-w-4xl mx-auto space-y-4">
                 <div>
                   <h2 className="text-2xl font-black text-slate-800">Live Telemetry Feed</h2>
@@ -266,14 +292,13 @@ export default function DashboardPage() {
                     <p className="text-slate-500 text-sm">{activeDashboard.description}</p>
                   </div>
                   
-                  {/* Dashboard Action Header Panel [2] */}
+                  {/* Dashboard Action Header Panel */}
                   <div className="flex items-center gap-3">
                     {activeDashboard.is_public && (
                       <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider border border-emerald-100 select-none">
                         Public Share Link Active
                       </span>
                     )}
-                    {/* Added: Add Widget Action Button */}
                     <Button
                       onClick={() => setIsWidgetOpen(true)}
                       className="px-3 py-1.5 text-xs font-extrabold"
@@ -356,7 +381,7 @@ export default function DashboardPage() {
         </form>
       </Modal>
 
-      {/* Added: Reusable Widget Creation Modal Form [2, 3] */}
+      {/* Reusable Widget Creation Modal Form */}
       <Modal
         isOpen={isWidgetOpen}
         onClose={() => setIsWidgetOpen(false)}

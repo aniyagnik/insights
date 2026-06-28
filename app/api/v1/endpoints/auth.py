@@ -87,8 +87,10 @@ async def login(response: Response, payload: LoginRequest, db: AsyncSession = De
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=settings.ENVIRONMENT != "local",  # Enforce SSL/HTTPS outside local environments
-        samesite="lax",
+        # Must be True in production (HTTPS required)
+        secure=settings.ENVIRONMENT != "local",
+        # "none" allows secure cross-site cookie sharing between Vercel and Render [4]
+        samesite="none" if settings.ENVIRONMENT != "local" else "lax",
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
     )
     
