@@ -73,8 +73,8 @@ export default function WidgetCard({ dashboardId, widgetId, isPublic = false }: 
             {data.interval}ly buckets
           </span>
         </div>
-        <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider mt-0.5">
-          {data.type} — {data.event_name}
+         <p className="text-[10px] text-slate-400 font-bold tracking-wider mt-0.5">
+          <span className="uppercase">{data.type}</span> — <span className="font-mono text-slate-500">{data.event_name}</span>
         </p>
       </div>
 
