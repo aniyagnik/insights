@@ -1,4 +1,0 @@
-event_name,timestamp,page_url,browser_name,load_time_ms
-page_view,2026-06-27T10:00:00,/pricing,Chrome,120
-purchase_completed,,/checkout,Firefox,240
-page_view,2026-06-27T10:02:00,/home,Safari,95
