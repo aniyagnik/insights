@@ -1,6 +1,6 @@
 import { useAuthStore } from "@/store/authStore";  
 
-const BACKEND_URL = "http://localhost:8000/api/v1";
+const BACKEND_URL = "https://insights-0etk.onrender.com/api/v1";
 
 export async function apiRequest(
   endpoint: string,

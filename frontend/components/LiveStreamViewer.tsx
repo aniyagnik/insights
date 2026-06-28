@@ -19,7 +19,7 @@ export default function LiveStreamViewer() {
     if (!accessToken) return;
 
     // Establish persistent secure connection to backend WebSocket
-    const wsUrl = `ws://127.0.0.1:8000/api/v1/ws/events?token=${accessToken}`;
+    const wsUrl = `ws://insights-0etk.onrender.com/api/v1/ws/events?token=${accessToken}`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
