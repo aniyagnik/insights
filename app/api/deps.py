@@ -6,6 +6,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, APIKeyHeader  # Added APIKeyHeader
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from datetime import datetime, timezone
+import redis.asyncio as aioredis
 
 from app.config import settings
 from app.database import get_db
@@ -15,6 +17,32 @@ from app.models.api_key import ApiKey
 security = HTTPBearer()
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+
+async def is_rate_limited(key_identifier: str, limit: int = 100, window: int = 60) -> bool:
+    """
+    Sliding-window rate limiter using Redis sorted sets (zset).
+    Prunes timestamps older than the sliding window and evaluates current frequency.
+    """
+    now = datetime.now(timezone.utc).timestamp()
+    clear_before = now - window
+    redis_key = f"rate_limit:{key_identifier}"
+    
+    async with redis_client.pipeline(transaction=True) as pipe:
+        # 1. Prune timestamps outside of lookup sliding window
+        pipe.zremrangebyscore(redis_key, 0, clear_before)
+        # 2. Count active hits remaining in bucket
+        pipe.zcard(redis_key)
+        # 3. Append current event timestamp
+        pipe.zadd(redis_key, {str(now): now})
+        # 4. Refresh TTL on lookup bucket
+        pipe.expire(redis_key, window)
+        
+        results = await pipe.execute()
+        current_count = results[1]
+        
+    return current_count >= limit
 
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
@@ -103,6 +131,47 @@ async def get_api_key_org_id(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or deactivated API Key."
+        )
+        
+    return db_key.organization_id
+
+async def get_api_key_org_id(
+    api_key: Annotated[str | None, Depends(api_key_header)],
+    db: Annotated[AsyncSession, Depends(get_db)]
+) -> uuid.UUID:
+    """Validate X-API-Key custom header, check active rate limits, and yield org ID."""
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing 'X-API-Key' header."
+        )
+    
+    if "." not in api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API Key format."
+        )
+
+    hashed_key = hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+    
+    query = select(ApiKey).where(
+        ApiKey.hashed_key == hashed_key,
+        ApiKey.is_active == True
+    )
+    result = await db.execute(query)
+    db_key = result.scalar_one_or_none()
+
+    if not db_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or deactivated API Key."
+        )
+        
+    # Enforce Sliding Window Rate Limiting (100 requests per 60 seconds) per API Key
+    if await is_rate_limited(str(db_key.id), limit=100, window=60):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. Maximum 100 requests per minute per API Key."
         )
         
     return db_key.organization_id
