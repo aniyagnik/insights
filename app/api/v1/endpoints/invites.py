@@ -1,28 +1,29 @@
 import secrets
 import uuid
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.database import get_db
 from app.api.deps import get_current_user, RoleChecker
-from app.models.user_org import User, UserRole
+from app.models.user_org import User, UserRole, Organization
 from app.models.invitation import Invitation
 from app.schemas.invitation import InviteCreate, InviteResponse, InviteAccept
 from app.schemas.user_org import UserResponse
 from app.core.security import hash_password
+from app.worker import celery_app 
 
 router = APIRouter()
 
 @router.post("/", response_model=InviteResponse, status_code=status.HTTP_201_CREATED)
 async def create_invitation(
     payload: InviteCreate,
+    request: Request,
     current_user: User = Depends(RoleChecker([UserRole.OWNER, UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ):
-    """Generate a secure onboarding invitation token for a new team member."""
-    # Check if a user with this email is already registered
+    """Generate a secure onboarding invitation token for a new team member [2]."""
     user_query = select(User).where(User.email == payload.email)
     user_res = await db.execute(user_query)
     if user_res.scalar_one_or_none():
@@ -31,7 +32,6 @@ async def create_invitation(
             detail="A user with this email is already registered."
         )
 
-    # Issue a secure 7-day token
     token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
 
@@ -45,6 +45,25 @@ async def create_invitation(
     db.add(new_invite)
     await db.commit()
     await db.refresh(new_invite)
+
+    org_query = select(Organization).where(Organization.id == current_user.organization_id)
+    org_result = await db.execute(org_query)
+    org = org_result.scalar_one_or_none()
+    org_name = org.name if org else "Your Organization"
+
+    frontend_origin = request.headers.get("origin") or "http://127.0.0.1:3000"
+    invite_link = f"{frontend_origin}/invite/accept?token={token}"
+
+    try:
+        celery_app.send_task(
+            "send_invitation_email_task", 
+            args=[new_invite.email, org_name, invite_link]
+        )
+    except Exception as e:
+        import logging
+        logger = logging.getLogger("app.invites")
+        logger.error(f"Failed to dispatch Celery onboarding task: {e}")
+
     return new_invite
 
 @router.get("/", response_model=list[InviteResponse])

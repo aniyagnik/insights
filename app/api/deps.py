@@ -1,12 +1,12 @@
 import uuid
 import jwt
-import hashlib 
+import hashlib
+from datetime import datetime, timezone
 from typing import Annotated
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, APIKeyHeader  # Added APIKeyHeader
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, APIKeyHeader
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from datetime import datetime, timezone
 import redis.asyncio as aioredis
 
 from app.config import settings
@@ -15,28 +15,24 @@ from app.models.user_org import User, UserRole
 from app.models.api_key import ApiKey
 
 security = HTTPBearer()
-
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
+# Initialize the async Redis client
 redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
 
 async def is_rate_limited(key_identifier: str, limit: int = 100, window: int = 60) -> bool:
     """
     Sliding-window rate limiter using Redis sorted sets (zset).
-    Prunes timestamps older than the sliding window and evaluates current frequency.
+    Prunes timestamps older than the sliding window and evaluates current frequency [2, 4].
     """
     now = datetime.now(timezone.utc).timestamp()
     clear_before = now - window
     redis_key = f"rate_limit:{key_identifier}"
     
     async with redis_client.pipeline(transaction=True) as pipe:
-        # 1. Prune timestamps outside of lookup sliding window
         pipe.zremrangebyscore(redis_key, 0, clear_before)
-        # 2. Count active hits remaining in bucket
         pipe.zcard(redis_key)
-        # 3. Append current event timestamp
         pipe.zadd(redis_key, {str(now): now})
-        # 4. Refresh TTL on lookup bucket
         pipe.expire(redis_key, window)
         
         results = await pipe.execute()
@@ -44,11 +40,12 @@ async def is_rate_limited(key_identifier: str, limit: int = 100, window: int = 6
         
     return current_count >= limit
 
+
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
     db: Annotated[AsyncSession, Depends(get_db)]
 ) -> User:
-    """Extract, decode, and validate the active user using their JWT access token."""
+    """Extract, decode, and validate the active user using their JWT access token [2]."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -72,7 +69,6 @@ async def get_current_user(
     except jwt.PyJWTError:
         raise credentials_exception
 
-    # Confirm the user still exists in the system
     query = select(User).where(User.id == uuid.UUID(user_id))
     result = await db.execute(query)
     user = result.scalar_one_or_none()
@@ -88,7 +84,7 @@ async def get_current_user(
 
 
 class RoleChecker:
-    """Class dependency to enforce Role-Based Access Control on targeted endpoints."""
+    """Class dependency to enforce Role-Based Access Control on targeted endpoints [2]."""
     def __init__(self, allowed_roles: list[UserRole]):
         self.allowed_roles = allowed_roles
 
@@ -99,47 +95,13 @@ class RoleChecker:
                 detail="You do not have access permission to perform this action."
             )
         return current_user
-    
-async def get_api_key_org_id(
-    api_key: Annotated[str | None, Depends(api_key_header)],
-    db: Annotated[AsyncSession, Depends(get_db)]
-) -> uuid.UUID:
-    """Validate X-API-Key custom header and return the bound organization ID context."""
-    if not api_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing 'X-API-Key' header."
-        )
-    
-    if "." not in api_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API Key format."
-        )
 
-    # Re-hash key to search and match the database entry securely
-    hashed_key = hashlib.sha256(api_key.encode("utf-8")).hexdigest()
-    
-    query = select(ApiKey).where(
-        ApiKey.hashed_key == hashed_key,
-        ApiKey.is_active == True
-    )
-    result = await db.execute(query)
-    db_key = result.scalar_one_or_none()
-
-    if not db_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or deactivated API Key."
-        )
-        
-    return db_key.organization_id
 
 async def get_api_key_org_id(
     api_key: Annotated[str | None, Depends(api_key_header)],
     db: Annotated[AsyncSession, Depends(get_db)]
 ) -> uuid.UUID:
-    """Validate X-API-Key custom header, check active rate limits, and yield org ID."""
+    """Validate X-API-Key custom header, check active rate limits, and yield org ID [2, 4]."""
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -167,7 +129,7 @@ async def get_api_key_org_id(
             detail="Invalid or deactivated API Key."
         )
         
-    # Enforce Sliding Window Rate Limiting (100 requests per 60 seconds) per API Key
+    # Enforce Sliding Window Rate Limiting (100 requests per 60 seconds) per API Key [2, 4]
     if await is_rate_limited(str(db_key.id), limit=100, window=60):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";  // Modified: Combined useRef import
 import { useAuthStore } from "@/store/authStore";
 
 interface LiveEvent {
@@ -19,7 +19,6 @@ export default function LiveStreamViewer() {
     if (!accessToken) return;
 
     const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
-
     const wsBase = BACKEND_URL
       .replace("http://", "ws://")
       .replace("https://", "wss://");
@@ -94,5 +93,3 @@ export default function LiveStreamViewer() {
     </div>
   );
 }
-
-import { useRef } from "react";

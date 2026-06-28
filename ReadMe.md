@@ -128,7 +128,8 @@ uvicorn app.main:app --reload --port 8000
 Ensure your virtual environment is active in this terminal, and run:
 
 ```bash
-celery -A app.worker.celery_app worker -B --loglevel=info
+celery -A app.worker.celery_app worker --loglevel=info &
+celery -A app.worker.celery_app beat --loglevel=info &
 ```
 
 > **Note**: The `-B` flag tells Celery to run both the task worker and the periodic alerting scheduler together in a single loop lifecycle.
