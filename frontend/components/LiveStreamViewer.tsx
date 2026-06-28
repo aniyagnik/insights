@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useAuthStore } from "@/store/authStore";
 
 interface LiveEvent {
@@ -18,8 +18,14 @@ export default function LiveStreamViewer() {
   useEffect(() => {
     if (!accessToken) return;
 
-    // Establish persistent secure connection to backend WebSocket
-    const wsUrl = `ws://insights-0etk.onrender.com/api/v1/ws/events?token=${accessToken}`;
+    const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+
+    const wsBase = BACKEND_URL
+      .replace("http://", "ws://")
+      .replace("https://", "wss://");
+
+    const wsUrl = `${wsBase}/ws/events?token=${accessToken}`;
+    
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
@@ -31,7 +37,6 @@ export default function LiveStreamViewer() {
       try {
         const payload = JSON.parse(event.data);
         
-        // Handle single and batch event stream notifications
         if (payload.type === "live_event") {
           const newEvent: LiveEvent = payload.data;
           setEvents((prev) => [newEvent, ...prev].slice(0, 50));
@@ -48,7 +53,6 @@ export default function LiveStreamViewer() {
       setConnected(false);
     };
 
-    // Clean up connection channel on unmount
     return () => {
       if (wsRef.current) {
         wsRef.current.close();
@@ -58,7 +62,6 @@ export default function LiveStreamViewer() {
 
   return (
     <div className="bg-slate-900 text-slate-100 p-6 rounded-xl shadow-md border border-slate-800 flex flex-col h-[500px]">
-      {/* Sockets Status Header */}
       <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
         <div className="flex items-center gap-3">
           <span className={`w-2.5 h-3 rounded-full ${connected ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`}></span>
@@ -69,7 +72,6 @@ export default function LiveStreamViewer() {
         </span>
       </div>
 
-      {/* Terminal Display */}
       <div className="flex-1 overflow-y-auto space-y-3 font-mono text-xs">
         {events.length === 0 ? (
           <div className="h-full flex items-center justify-center text-slate-500 italic">
@@ -92,3 +94,5 @@ export default function LiveStreamViewer() {
     </div>
   );
 }
+
+import { useRef } from "react";
