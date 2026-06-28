@@ -1,8 +1,5 @@
 import asyncio
 import uuid
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timezone, timedelta 
 from celery import Celery
 from sqlalchemy.pool import NullPool 

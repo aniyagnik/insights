@@ -7,7 +7,7 @@ A production-grade, full-stack SaaS analytics tool. This platform utilizes an as
 ## 🚀 Live Demo Links
 - **Frontend Dashboard UI**: [https://insights-flame.vercel.app](https://insights-flame.vercel.app)
 - **Interactive API Documentation (Swagger)**: [https://insights-0etk.onrender.com/docs](https://insights-0etk.onrender.com/docs)
-- **API Health Check**: [https://insights-0etk.onrender.com/api/v1/health](https://insights-0etk.onrender.com/api/v1/health)
+- **API Health Check**: [https://insights-0etk.onrender.com/health](https://insights-0etk.onrender.com/health)
 
 ---
 
@@ -25,7 +25,7 @@ A production-grade, full-stack SaaS analytics tool. This platform utilizes an as
 ### 3. Session and Connection Management
 - **Stateless Session Recovery**: Integrates short-lived JWT access tokens alongside long-lived refresh tokens stored inside secure, HTTP-only cookies. On browser refresh, the client silently restores the user session state.
 - **Worker Connection Preservation**: The Celery background worker processes run in separate asyncio event loops. To avoid `RuntimeError: Event loop is closed` errors, the worker uses a dedicated database engine configured with `NullPool`.
-- **CORS Constraints**: The FastAPI application restricts origin access to explicit development and production hostnames to allow secure cookie credentials sharing between the client and the API server [4].
+- **CORS Constraints**: The FastAPI application restricts origin access to explicit development and production hostnames to allow secure cookie credentials sharing between the client and the API server.
 
 ---
 
@@ -154,7 +154,7 @@ Open a **third terminal tab** to set up and run the Next.js frontend client:
 - **Frontend Access:** [http://127.0.0.1:3000](http://127.0.0.1:3000)
 
 > [!IMPORTANT]
-> **CRITICAL DEVELOPER NOTE:** To allow secure, `HttpOnly` cookie sharing between your frontend and backend locally, always access the frontend on the raw IP **http://127.0.0.1:3000** instead of `http://localhost:3000` [4]. This ensures the hostnames align exactly with your backend URL (http://127.0.0.1:8000), allowing the browser to classify cookie transactions as `Same-Site` [4].
+> **CRITICAL DEVELOPER NOTE:** To allow secure, `HttpOnly` cookie sharing between your frontend and backend locally, always access the frontend on the raw IP **http://127.0.0.1:3000** instead of `http://localhost:3000`. This ensures the hostnames align exactly with your backend URL (http://127.0.0.1:8000), allowing the browser to classify cookie transactions as `Same-Site`.
 
 ---
 
@@ -173,7 +173,7 @@ Our frontend is configured to build and deploy dynamically on Vercel.
 - **Build Configurations**: 
   - **Root Directory**: `frontend`
   - **Environment Variables**: `NEXT_PUBLIC_API_URL=https://insights-0etk.onrender.com/api/v1`
-- **Session Security**: The backend's `CORSMiddleware` explicitly permits the `insights-flame.vercel.app` origin to support secure cookie exchanges [4].
+- **Session Security**: The backend's `CORSMiddleware` explicitly permits the `insights-flame.vercel.app` origin to support secure cookie exchanges.
 
 ---
 
@@ -191,20 +191,20 @@ The entire application can be managed directly through the Next.js user interfac
 2. Set the name to `Production Telemetry`, write an optional description, check **"Make Dashboard Public"** if you want to test public share links, and click **Create**.
 3. Click the blue **"+ Add Chart Widget"** button in the top right to configure a chart card [2, 3]:
    - **Name**: `Pricing Signups`
-   - **Visualization**: `Line Chart` (or Bar, Pie, KPI, Table) [3]
+   - **Visualization**: `Line Chart` (or Bar, Pie, KPI, Table)
    - **Target Tracking Event**: `pricing_completed` (Note: database matching is case-sensitive!) [1, 3]
 
 ### 3. Generate API Keys & Simulate Ingestion
 1. Go to the **Developer Settings** tab on your workspace navigation.
 2. Under **API Key Manager**, enter a key name and click **Generate**.
-3. Copy your plain-text key from the secure green warning banner [4]. (This key automatically populates your simulators).
+3. Copy your plain-text key from the secure green warning banner. (This key automatically populates your simulators).
 4. Under **Single Event Simulator**:
    - Ensure your copied key is pasted in the auth field.
    - Set the event name to `pricing_completed`.
    - Click **Simulate & Ingest Event** 3 to 4 times.
 5. Under **Batch Event Simulator**:
    - Paste an array of events with varied timestamps to test chronological trend lines [2, 3].
-6. Switch back to your **Production Telemetry** tab. Refresh (or wait for the 30-second TanStack cache auto-refresh). Your Recharts graphs will render your active data points [3].
+6. Switch back to your **Production Telemetry** tab. Refresh (or wait for the 30-second TanStack cache auto-refresh). Your Recharts graphs will render your active data points.
 
 ### 4. Open Real-Time WebSocket Log Stream
 1. Click on the **Live Stream** tab.
@@ -216,7 +216,7 @@ The entire application can be managed directly through the Next.js user interfac
 1. Go to the **Team & Alerts** tab.
 2. Under **Team Onboarding**, type a colleague's email, assign them a role (e.g. `Analyst`), and click send.
 3. Double-click the generated registration link under "Pending Invites" to copy it.
-4. In your terminal, look at your Celery worker logs. The worker has intercepted the task and logged a copyable join-link:
+4. Copy the link from Pending Invites in the UI, or check Celery worker logs locally. The worker has intercepted the task and logged a copyable join-link:
    ```text
     [SMTP MOCK EMAIL] Onboarding Invitation Dispatched!
     http://127.0.0.1:3000/invite/accept?token=xxxx...
