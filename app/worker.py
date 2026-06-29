@@ -10,6 +10,7 @@ from sqlalchemy import func
 from app.config import settings
 from app.models.event import Event
 from app.models.alert import AlertRule, AlertHistory, AlertStatus 
+from app.repositories.event import EventRepository 
 
 # Configure the Celery application
 celery_app = Celery(
@@ -47,25 +48,12 @@ WorkerSessionLocal = async_sessionmaker(
     autoflush=False,
     expire_on_commit=False,
 )
-
 async def _insert_events_async(events_data: list[dict], org_id: uuid.UUID):
-    """Worker database connector to batch-persist tracking payloads asynchronously."""
-    # Use the dedicated WorkerSessionLocal instead of the main database pool
+    """Worker database connector using our clean EventRepository layer."""
     async with WorkerSessionLocal() as db:
-        db_events = []
-        for item in events_data:
-            ts_str = item.get("timestamp")
-            ts = datetime.fromisoformat(ts_str) if ts_str else datetime.now(timezone.utc)
-            db_events.append(
-                Event(
-                    organization_id=org_id,
-                    event_name=item["event_name"],
-                    properties=item["properties"],
-                    timestamp=ts
-                )
-            )
-        db.add_all(db_events)
-        await db.commit()
+        repo = EventRepository(db)
+        await repo.create_events_batch(events_data, org_id)
+
 
 @celery_app.task(name="process_events_task")
 def process_events_task(events_data: list[dict], org_id_str: str):
