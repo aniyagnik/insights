@@ -1,8 +1,7 @@
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from app.models.alert import AlertRule, AlertStatus
-
+from app.models.alert import AlertRule, AlertHistory, AlertStatus
 class AlertRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -74,6 +73,25 @@ class AlertRepository:
         await self.db.refresh(rule)
         return rule
 
+    async def list_active_and_triggered_rules(self) -> list[AlertRule]:
+        """Fetch all alert rules currently monitoring or triggered."""
+        query = select(AlertRule).where(
+            AlertRule.status.in_([AlertStatus.ACTIVE, AlertStatus.TRIGGERED])
+        )
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+
+    async def create_history_log(self, rule_id: uuid.UUID, value: float, status: AlertStatus) -> AlertHistory:
+        """Stage and persist an alert trigger or resolution history log."""
+        history_log = AlertHistory(
+            alert_rule_id=rule_id,
+            triggered_value=value,
+            status_at_trigger=status
+        )
+        self.db.add(history_log)
+        await self.db.commit()
+        return history_log
+    
     async def delete_rule(self, rule: AlertRule) -> None:
         """Delete an alert rule and recursively purge its trigger log history."""
         await self.db.delete(rule)

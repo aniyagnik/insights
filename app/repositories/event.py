@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 from app.models.event import Event
 
 class EventRepository:
@@ -23,3 +24,13 @@ class EventRepository:
             )
         self.db.add_all(db_events)
         await self.db.commit()
+
+    async def count_events_in_window(self, org_id: uuid.UUID, event_name: str, start_time: datetime) -> int:
+        """Query and return the total count of events within a specific lookback window."""
+        query = select(func.count(Event.id)).where(
+            Event.organization_id == org_id,
+            Event.event_name == event_name,
+            Event.timestamp >= start_time
+        )
+        result = await self.db.execute(query)
+        return result.scalar_one() or 0

@@ -4,13 +4,11 @@ from datetime import datetime, timezone, timedelta
 from celery import Celery
 from sqlalchemy.pool import NullPool 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlalchemy.future import select
-from sqlalchemy import func 
 
 from app.config import settings
-from app.models.event import Event
-from app.models.alert import AlertRule, AlertHistory, AlertStatus 
+from app.models.alert import AlertStatus  
 from app.repositories.event import EventRepository 
+from app.repositories.alert import AlertRepository 
 
 # Configure the Celery application
 celery_app = Celery(
@@ -35,7 +33,6 @@ celery_app.conf.beat_schedule = {
 }
 
 # Create a dedicated worker engine with NullPool
-# This ensures connections are closed entirely per task and never pooled across closed event loops
 worker_engine = create_async_engine(
     settings.DATABASE_URL,
     poolclass=NullPool,
@@ -48,6 +45,7 @@ WorkerSessionLocal = async_sessionmaker(
     autoflush=False,
     expire_on_commit=False,
 )
+
 async def _insert_events_async(events_data: list[dict], org_id: uuid.UUID):
     """Worker database connector using our clean EventRepository layer."""
     async with WorkerSessionLocal() as db:
@@ -80,47 +78,46 @@ def send_invitation_email_task(email: str, org_name: str, invite_link: str):
     return
         
 async def _evaluate_alerts_async():
-    """Evaluate active alert rule thresholds against chronological event counts."""
+    """Evaluate active alert rule thresholds using clean decoupled repository layers."""
     async with WorkerSessionLocal() as db:
-        query = select(AlertRule).where(
-            AlertRule.status.in_([AlertStatus.ACTIVE, AlertStatus.TRIGGERED])
-        )
-        result = await db.execute(query)
-        rules = result.scalars().all()
+        alert_repo = AlertRepository(db)
+        event_repo = EventRepository(db)
+
+        # 1. Fetch rules currently monitoring or triggered using AlertRepository
+        rules = await alert_repo.list_active_and_triggered_rules()
         
         now = datetime.now(timezone.utc)
         
         for rule in rules:
             window_start = now - timedelta(minutes=rule.time_window_minutes)
             
-            event_query = select(func.count(Event.id)).where(
-                Event.organization_id == rule.organization_id,
-                Event.event_name == rule.event_name,
-                Event.timestamp >= window_start
+            # 2. Query event count using EventRepository
+            current_count = await event_repo.count_events_in_window(
+                org_id=rule.organization_id,
+                event_name=rule.event_name,
+                start_time=window_start
             )
-            event_res = await db.execute(event_query)
-            current_count = event_res.scalar_one() or 0
             
+            # 3. Breach checking logic
             if current_count >= rule.threshold:
                 if rule.status == AlertStatus.ACTIVE:
                     rule.status = AlertStatus.TRIGGERED
-                    history_log = AlertHistory(
-                        alert_rule_id=rule.id,
-                        triggered_value=float(current_count),
-                        status_at_trigger=AlertStatus.TRIGGERED
+                    await alert_repo.create_history_log(
+                        rule_id=rule.id,
+                        value=float(current_count),
+                        status=AlertStatus.TRIGGERED
                     )
-                    db.add(history_log)
                     print(f"[ALERT TRIGGERED] Rule '{rule.name}' breached! Count: {current_count} >= Threshold: {rule.threshold}")
             
+            # 4. Resolution checking logic
             else:
                 if rule.status == AlertStatus.TRIGGERED:
                     rule.status = AlertStatus.ACTIVE
-                    history_log = AlertHistory(
-                        alert_rule_id=rule.id,
-                        triggered_value=float(current_count),
-                        status_at_trigger=AlertStatus.RESOLVED
+                    await alert_repo.create_history_log(
+                        rule_id=rule.id,
+                        value=float(current_count),
+                        status=AlertStatus.RESOLVED
                     )
-                    db.add(history_log)
                     print(f"[ALERT RESOLVED] Rule '{rule.name}' resolved. Count: {current_count} < Threshold: {rule.threshold}")
         
         await db.commit()
@@ -128,4 +125,4 @@ async def _evaluate_alerts_async():
 @celery_app.task(name="evaluate_alerts_task")
 def evaluate_alerts_task():
     """Periodic task wrapper triggered by Celery Beat scheduler."""
-    asyncio.run(_evaluate_alerts_async())        
+    asyncio.run(_evaluate_alerts_async())
