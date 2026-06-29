@@ -38,6 +38,15 @@ class ApiKeyRepository:
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
+    async def get_active_by_hash(self, hashed_key: str) -> ApiKey | None:
+        """Fetch an active API Key by its SHA256 hashed value."""
+        query = select(ApiKey).where(
+            ApiKey.hashed_key == hashed_key,
+            ApiKey.is_active == True
+        )
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
     async def update_key(
         self, 
         api_key: ApiKey, 
