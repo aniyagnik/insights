@@ -10,7 +10,8 @@ import Modal from "@/components/Modal";
 import WidgetCard from "@/components/WidgetCard";
 import LiveStreamViewer from "@/components/LiveStreamViewer";
 import IntegrationsPanel from "@/components/IntegrationsPanel";
-import AlertsAndTeamPanel from "@/components/AlertsAndTeamPanel"; 
+import AlertsAndTeamPanel from "@/components/AlertsAndTeamPanel";
+
 interface Dashboard {
   id: string;
   name: string;
@@ -26,9 +27,12 @@ export default function DashboardPage() {
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [activeDashboard, setActiveDashboard] = useState<Dashboard | null>(null);
   const [showLiveStream, setShowLiveStream] = useState(false);
-  const [showIntegrations, setShowIntegrations] = useState(false);  
-  const [showTeamAlerts, setShowTeamAlerts] = useState(false); 
+  const [showIntegrations, setShowIntegrations] = useState(false);
+  const [showTeamAlerts, setShowTeamAlerts] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Dynamic domain origin state to build public URLs cleanly
+  const [origin, setOrigin] = useState("");
 
   // Dashboard creation states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -36,6 +40,14 @@ export default function DashboardPage() {
   const [dashDesc, setDashDesc] = useState("");
   const [isPublic, setIsPublic] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
+
+  // Dashboard edit and deletion states
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editPublic, setEditPublic] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Widget creation states
   const [isWidgetOpen, setIsWidgetOpen] = useState(false);
@@ -45,6 +57,11 @@ export default function DashboardPage() {
   const [timeRangeHours, setTimeRangeHours] = useState("24");
   const [interval, setInterval] = useState("hour");
   const [widgetLoading, setWidgetLoading] = useState(false);
+
+  // Track browser origin safely on mount
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -86,7 +103,8 @@ export default function DashboardPage() {
       setDashboards((prev) => [...prev, newDash]);
       setActiveDashboard(newDash);
       setShowLiveStream(false);
-      setShowIntegrations(false);  // Ensure closed on select
+      setShowIntegrations(false);
+      setShowTeamAlerts(false);
 
       setDashName("");
       setDashDesc("");
@@ -96,6 +114,65 @@ export default function DashboardPage() {
       console.error("Failed to create dashboard", err);
     } finally {
       setCreateLoading(false);
+    }
+  };
+
+  const openEditModal = () => {
+    if (!activeDashboard) return;
+    setEditName(activeDashboard.name);
+    setEditDesc(activeDashboard.description || "");
+    setEditPublic(activeDashboard.is_public);
+    setIsEditOpen(true);
+  };
+
+  const handleUpdateDashboard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeDashboard) return;
+    setEditLoading(true);
+
+    try {
+      const updated = await apiRequest(`/dashboards/${activeDashboard.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: editName,
+          description: editDesc,
+          is_public: editPublic
+        })
+      });
+
+      setDashboards((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+      setActiveDashboard(updated);
+      setIsEditOpen(false);
+    } catch (err) {
+      console.error("Failed to update dashboard", err);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleDeleteDashboard = async () => {
+    if (!activeDashboard) return;
+    if (!confirm("Are you sure you want to delete this dashboard? All widgets inside will be permanently deleted.")) return;
+    setDeleteLoading(true);
+
+    try {
+      await apiRequest(`/dashboards/${activeDashboard.id}`, {
+        method: "DELETE"
+      });
+
+      const remaining = dashboards.filter((d) => d.id !== activeDashboard.id);
+      setDashboards(remaining);
+      
+      if (remaining.length > 0) {
+        setActiveDashboard(remaining[0]);
+      } else {
+        setActiveDashboard(null);
+      }
+      setIsEditOpen(false);
+    } catch (err) {
+      console.error("Failed to delete dashboard", err);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -215,7 +292,7 @@ export default function DashboardPage() {
                     setActiveDashboard(dash);
                     setShowLiveStream(false);
                     setShowIntegrations(false);
-                    setShowTeamAlerts(false);  // Toggle off team alerts
+                    setShowTeamAlerts(false);
                   }}
                   className={`px-4 py-1.5 text-sm font-bold rounded-lg transition ${
                     !showLiveStream && !showIntegrations && !showTeamAlerts && activeDashboard?.id === dash.id
@@ -270,6 +347,7 @@ export default function DashboardPage() {
                 Developer Settings
               </button>
 
+              {/* Team & Alerts Tab */}
               <button
                 onClick={() => {
                   setShowTeamAlerts(true);
@@ -287,6 +365,7 @@ export default function DashboardPage() {
               </button>
             </div>
 
+            {/* Display either Team Alerts, Integrations, Live Stream, or Active Dashboard Grid */}
             {showTeamAlerts ? (
               <div className="max-w-5xl mx-auto space-y-4">
                 <div>
@@ -315,24 +394,30 @@ export default function DashboardPage() {
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-2xl font-black text-slate-800">{activeDashboard.name}</h2>
+                    {/* Header with Title and Settings Trigger Link */}
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-2xl font-black text-slate-800">{activeDashboard.name}</h2>
+                      <button
+                        onClick={openEditModal}
+                        className="text-[10px] font-bold text-slate-400 hover:text-indigo-600 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-100 px-2.5 py-1 rounded-lg transition"
+                      >
+                        Settings
+                      </button>
+                    </div>
                     <p className="text-slate-500 text-sm">{activeDashboard.description}</p>
                   </div>
                   
-                  {/* Dashboard Action Header Panel */}
-                  <div className="flex items-center gap-3">
-                    {activeDashboard.is_public && (
-                      <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider border border-emerald-100 select-none">
-                        Public Share Link Active
-                      </span>
-                    )}
-                    <Button
-                      onClick={() => setIsWidgetOpen(true)}
-                      className="px-3 py-1.5 text-xs font-extrabold"
+                  {/* Share indicator - Now rendered as a dynamic, clickable anchor link */}
+                  {activeDashboard.is_public && (
+                    <a
+                      href={`${origin}/dashboard/public/${activeDashboard.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[9px] bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full font-bold uppercase tracking-wider border border-emerald-200 hover:border-emerald-300 transition select-none decoration-transparent"
                     >
-                      + Add Chart Widget
-                    </Button>
-                  </div>
+                      🔗 View Public Board Link
+                    </a>
+                  )}
                 </div>
 
                 {/* Dashboard Widgets Layout Grid */}
@@ -340,6 +425,9 @@ export default function DashboardPage() {
                   {activeDashboard.widgets.length === 0 ? (
                     <div className="col-span-full py-12 text-center bg-white rounded-xl border border-dashed border-slate-200">
                       <p className="text-sm text-slate-500">This dashboard has no widgets configured yet.</p>
+                      <Button onClick={() => setIsWidgetOpen(true)} className="mx-auto mt-4 text-xs">
+                        + Add First Widget
+                      </Button>
                     </div>
                   ) : (
                     activeDashboard.widgets.map((widget) => (
@@ -357,7 +445,7 @@ export default function DashboardPage() {
         )}
       </main>
 
-      {/* Reusable Dashboard Creation Modal Form */}
+      {/* Global Dashboard Creation Modal Form */}
       <Modal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
@@ -379,7 +467,6 @@ export default function DashboardPage() {
             onChange={(e) => setDashDesc(e.target.value)}
             placeholder="Brief summary of visual metrics"
           />
-          
           <div className="flex items-center gap-2 pt-2 pb-2">
             <input
               type="checkbox"
@@ -392,7 +479,6 @@ export default function DashboardPage() {
               Make Dashboard Public (Read-Only Share Link)
             </label>
           </div>
-
           <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
             <Button
               type="button"
@@ -408,7 +494,64 @@ export default function DashboardPage() {
         </form>
       </Modal>
 
-      {/* Reusable Widget Creation Modal Form */}
+      {/* Global Dashboard Editing & Deletion Modal Form */}
+      <Modal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        title="Edit Dashboard Settings"
+      >
+        <form onSubmit={handleUpdateDashboard} className="space-y-4">
+          <Input
+            label="Dashboard Name"
+            type="text"
+            required
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+          />
+          <Input
+            label="Description (Optional)"
+            type="text"
+            value={editDesc}
+            onChange={(e) => setEditDesc(e.target.value)}
+          />
+          <div className="flex items-center gap-2 pt-2 pb-2">
+            <input
+              type="checkbox"
+              id="editPublic"
+              checked={editPublic}
+              onChange={(e) => setEditPublic(e.target.checked)}
+              className="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded"
+            />
+            <label htmlFor="editPublic" className="text-xs font-bold text-slate-700 select-none cursor-pointer">
+              Make Dashboard Public (Read-Only Share Link)
+            </label>
+          </div>
+          <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+            <Button
+              type="button"
+              variant="danger"
+              loading={deleteLoading}
+              onClick={handleDeleteDashboard}
+            >
+              Delete Board
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setIsEditOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" loading={editLoading}>
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Global Widget Creation Modal Form */}
       <Modal
         isOpen={isWidgetOpen}
         onClose={() => setIsWidgetOpen(false)}
@@ -421,17 +564,16 @@ export default function DashboardPage() {
             required
             value={widgetName}
             onChange={(e) => setWidgetName(e.target.value)}
-            placeholder="e.g., Active Checkout Count"
+            placeholder="e.g., Active Signups"
           />
-          
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">
-              Chart Visualization Type
+              Visualization Type
             </label>
             <select
               value={widgetType}
               onChange={(e) => setWidgetType(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition text-slate-800"
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition text-slate-800 font-bold"
             >
               <option value="line">Line Chart</option>
               <option value="bar">Bar Chart</option>
@@ -440,16 +582,14 @@ export default function DashboardPage() {
               <option value="table">Data Table</option>
             </select>
           </div>
-
           <Input
             label="Target Tracking Event Name"
             type="text"
             required
             value={eventName}
             onChange={(e) => setEventName(e.target.value)}
-            placeholder="e.g., checkout_completed"
+            placeholder="e.g., pricing_completed"
           />
-
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="Lookback Range (Hours)"
@@ -465,14 +605,13 @@ export default function DashboardPage() {
               <select
                 value={interval}
                 onChange={(e) => setInterval(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition text-slate-800"
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition text-slate-800 font-bold"
               >
                 <option value="hour">Hourly Buckets</option>
                 <option value="day">Daily Buckets</option>
               </select>
             </div>
           </div>
-
           <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
             <Button
               type="button"
